@@ -1,8 +1,7 @@
 package io.github.louissantucci.persistence;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 import java.util.Objects;
 
@@ -10,18 +9,20 @@ import java.util.Objects;
 @Table(name = "t_file_fl")
 @Getter
 @Setter
+@NoArgsConstructor
+@Builder
+@AllArgsConstructor
 public class FileEntity {
     @Id
     @GeneratedValue
     private Long id;
+    private String path;
+    private String filename;
+    private boolean isFlushed;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "fw_id", nullable = false)
     private FileWatcherEntity fileWatcher;
-
-    private String path;
-    private String filename;
-    private boolean isFlushed;
 
     @Override
     public boolean equals(Object o) {

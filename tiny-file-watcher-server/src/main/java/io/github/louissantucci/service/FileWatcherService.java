@@ -51,6 +51,35 @@ public class FileWatcherService {
         activeWatchers.keySet().forEach(this::stopWatcher);
     }
 
+    public boolean isEnabled(long id) {
+        var optional = fileWatcherRepository.findByIdOptional(id);
+        if (optional.isEmpty()) {
+            throw new EntityNotFoundException("File watcher with id " + id + " not found");
+        }
+        return optional.get().isEnabled();
+    }
+
+    @Transactional
+    public long createWatcher(String source, String destination) {
+        FileWatcherEntity entity = FileWatcherEntity.builder()
+                .source(source)
+                .destination(destination)
+                .enabled(false)
+                .build();
+        fileWatcherRepository.persist(entity);
+        log.info("FileWatcher created with id={}, source='{}', destination='{}'.", entity.getId(), source, destination);
+        return entity.getId();
+    }
+
+    @Transactional
+    public void deleteWatcher(long id) {
+        FileWatcherEntity entity = fileWatcherRepository.findByIdOptional(id)
+                .orElseThrow(() -> new EntityNotFoundException("File watcher with id " + id + " not found"));
+        stopWatcher(id);
+        fileWatcherRepository.delete(entity);
+        log.info("FileWatcher [id={}] deleted.", id);
+    }
+
     public void stopWatcher(long id) {
         WatchService watchService = activeWatchers.remove(id);
         if (watchService != null) {

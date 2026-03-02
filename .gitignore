@@ -10,6 +10,8 @@ tfw
 
 gen/
 
+go.sum
+
 **/*.db
 
 # Eclipse

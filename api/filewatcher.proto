@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package filewatcher;
+
+option go_package = "tiny-file-watcher/gen/filewatcher";
+
+import "google/protobuf/timestamp.proto";
+
+// FileWatcher represents a configured directory watcher.
+message Watcher {
+  string id = 1;
+  string name = 2;
+  string source_path = 3;
+  bool enabled = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+// WatchedFile represents a file detected by an active watcher.
+message WatchedFile {
+  string id = 1;
+  string watcher_id = 2;
+  string file_path = 3;
+  google.protobuf.Timestamp detected_at = 4;
+}
+
+message CreateWatcherRequest {
+  string name = 1;
+  string source_path = 2;
+}
+
+message GetWatcherRequest {
+  string id = 1;
+}
+
+message ListWatchersRequest {}
+
+message ListWatchersResponse {
+  repeated Watcher watchers = 1;
+}
+
+message UpdateWatcherRequest {
+  string id = 1;
+  string name = 2;
+  string source_path = 3;
+}
+
+message DeleteWatcherRequest {
+  string id = 1;
+}
+
+message DeleteWatcherResponse {
+  bool success = 1;
+}
+
+message ToggleWatcherRequest {
+  string id = 1;
+}
+
+service FileWatcherService {
+  rpc CreateWatcher(CreateWatcherRequest)   returns (Watcher);
+  rpc GetWatcher(GetWatcherRequest)         returns (Watcher);
+  rpc ListWatchers(ListWatchersRequest)     returns (ListWatchersResponse);
+  rpc UpdateWatcher(UpdateWatcherRequest)   returns (Watcher);
+  rpc DeleteWatcher(DeleteWatcherRequest)   returns (DeleteWatcherResponse);
+  rpc ToggleWatcher(ToggleWatcherRequest)   returns (Watcher);
+}

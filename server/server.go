@@ -1,0 +1,106 @@
+package main
+
+import (
+	"context"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"tiny-file-watcher/database"
+	pb "tiny-file-watcher/gen/filewatcher"
+	"tiny-file-watcher/watcher"
+)
+
+// Server implements the FileWatcherService gRPC server.
+type Server struct {
+	pb.UnimplementedFileWatcherServiceServer
+	db      *database.DB
+	manager *watcher.Manager
+}
+
+func NewServer(db *database.DB, mgr *watcher.Manager) *Server {
+	return &Server{db: db, manager: mgr}
+}
+
+func (s *Server) CreateWatcher(_ context.Context, req *pb.CreateWatcherRequest) (*pb.Watcher, error) {
+	if req.Name == "" || req.SourcePath == "" {
+		return nil, status.Error(codes.InvalidArgument, "name and source_path are required")
+	}
+	w, err := s.db.CreateWatcher(req.Name, req.SourcePath)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "create watcher: %v", err)
+	}
+	return toProto(w), nil
+}
+
+func (s *Server) GetWatcher(_ context.Context, req *pb.GetWatcherRequest) (*pb.Watcher, error) {
+	w, err := s.db.GetWatcher(req.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "watcher %s not found", req.Id)
+	}
+	return toProto(w), nil
+}
+
+func (s *Server) ListWatchers(_ context.Context, _ *pb.ListWatchersRequest) (*pb.ListWatchersResponse, error) {
+	watchers, err := s.db.ListWatchers()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list watchers: %v", err)
+	}
+	resp := &pb.ListWatchersResponse{}
+	for _, w := range watchers {
+		resp.Watchers = append(resp.Watchers, toProto(w))
+	}
+	return resp, nil
+}
+
+func (s *Server) UpdateWatcher(_ context.Context, req *pb.UpdateWatcherRequest) (*pb.Watcher, error) {
+	if req.Id == "" {
+		return nil, status.Error(codes.InvalidArgument, "id is required")
+	}
+	w, err := s.db.UpdateWatcher(req.Id, req.Name, req.SourcePath)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "update watcher: %v", err)
+	}
+	return toProto(w), nil
+}
+
+func (s *Server) DeleteWatcher(_ context.Context, req *pb.DeleteWatcherRequest) (*pb.DeleteWatcherResponse, error) {
+	// Stop goroutine before deleting from DB.
+	s.manager.Stop(req.Id)
+	if err := s.db.DeleteWatcher(req.Id); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete watcher: %v", err)
+	}
+	return &pb.DeleteWatcherResponse{Success: true}, nil
+}
+
+func (s *Server) ToggleWatcher(_ context.Context, req *pb.ToggleWatcherRequest) (*pb.Watcher, error) {
+	w, err := s.db.ToggleWatcher(req.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "toggle watcher: %v", err)
+	}
+	if w.Enabled {
+		if err := s.manager.Start(w.ID, w.SourcePath); err != nil {
+			// Roll back toggle on failure.
+			s.db.ToggleWatcher(req.Id)
+			return nil, status.Errorf(codes.Internal, "start watcher goroutine: %v", err)
+		}
+	} else {
+		s.manager.Stop(w.ID)
+	}
+	return toProto(w), nil
+}
+
+func toProto(w *database.FileWatcher) *pb.Watcher {
+	return &pb.Watcher{
+		Id:         w.ID,
+		Name:       w.Name,
+		SourcePath: w.SourcePath,
+		Enabled:    w.Enabled,
+		CreatedAt:  timestamppb.New(w.CreatedAt),
+		UpdatedAt:  timestamppb.New(w.UpdatedAt),
+	}
+}
+
+// ensure Server satisfies the generated interface at compile time.
+var _ pb.FileWatcherServiceServer = (*Server)(nil)

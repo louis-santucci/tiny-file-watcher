@@ -4,8 +4,6 @@ option java_multiple_files = true;
 option java_package = "io.github.louissantucci.grpc";
 option java_outer_classname = "FileWatcherProto";
 
-package filewatcher;
-
 enum Status {
   SUCCESS = 0;
   ERROR = 1;

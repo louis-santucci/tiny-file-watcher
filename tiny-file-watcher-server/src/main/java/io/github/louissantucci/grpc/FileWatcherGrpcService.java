@@ -4,11 +4,10 @@ import io.github.louissantucci.service.FileWatcherService;
 import io.quarkus.grpc.GrpcService;
 import io.smallrye.mutiny.Uni;
 import jakarta.persistence.EntityNotFoundException;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
 import java.util.List;
 import java.util.Objects;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @GrpcService
 @Slf4j
@@ -19,6 +18,7 @@ public class FileWatcherGrpcService implements FileWatcherCrud {
 
     @Override
     public Uni<FileWatcherListResponse> getAllFileWatchers(GetAllFileWatchersRequest request) {
+        log.info("CALL getAllFileWatchers");
         return Uni.createFrom().item(() -> {
             try {
                 List<FileWatcherMessage> messages = fileWatcherService.getWatcherEntities().stream()
@@ -47,6 +47,7 @@ public class FileWatcherGrpcService implements FileWatcherCrud {
 
     @Override
     public Uni<FileWatcherResponse> getFileWatcher(GetFileWatcherRequest request) {
+        log.info("CALL getFileWatcher");
         return Uni.createFrom().item(() -> {
             try {
                 var entity = fileWatcherService.getWatcherEntities().stream()
@@ -84,6 +85,7 @@ public class FileWatcherGrpcService implements FileWatcherCrud {
 
     @Override
     public Uni<FileWatcherResponse> createFileWatcher(CreateFileWatcherRequest request) {
+        log.info("CALL createFileWatcher");
         return Uni.createFrom().item(() -> {
             try {
                 long id = fileWatcherService.createWatcher(request.getSource(), request.getDestination());
@@ -111,6 +113,7 @@ public class FileWatcherGrpcService implements FileWatcherCrud {
 
     @Override
     public Uni<DeleteFileWatcherResponse> deleteFileWatcher(DeleteFileWatcherRequest request) {
+        log.info("CALL deleteFileWatcher");
         return Uni.createFrom().item(() -> {
             try {
                 fileWatcherService.deleteWatcher(request.getId());

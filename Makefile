@@ -1,10 +1,10 @@
-BINARY      := tfw
-SERVER_PKG  := ./server
-PROTO_DIR   := grpc
-GEN_DIR     := gen/grpc
-PROTO_FILE  := $(PROTO_DIR)/filewatcher.proto
-GOPATH      := $(shell go env GOPATH)
-INSTALL_DIR := $(GOPATH)/bin
+SERVER_BINARY := tfw
+SERVER_PKG    := ./server
+PROTO_DIR     := grpc
+GEN_DIR       := gen/grpc
+PROTO_FILE    := $(PROTO_DIR)/filewatcher.proto
+GOPATH        := $(shell go env GOPATH)
+INSTALL_DIR   := $(GOPATH)/bin
 
 # Ensure GOPATH/bin is on PATH so protoc plugins and golangci-lint are found.
 export PATH := $(INSTALL_DIR):$(PATH)
@@ -34,11 +34,11 @@ generate: $(PROTO_FILE) | $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_GRPC)
 
 ## build: compile the server binary
 build: generate
-	go build -o $(BINARY) $(SERVER_PKG)
+	go build -o $(SERVER_BINARY) $(SERVER_PKG)
 
 ## install: build and copy binary to GOPATH/bin
 install: build
-	install -m 0755 $(BINARY) $(INSTALL_DIR)/$(BINARY)
+	install -m 0755 $(SERVER_BINARY) $(INSTALL_DIR)/$(SERVER_BINARY)
 
 ## test: run all tests
 test: generate
@@ -50,7 +50,7 @@ lint: generate | $(GOLANGCI_LINT)
 
 ## clean: remove built binary and generated proto files
 clean:
-	rm -f $(BINARY)
+	rm -f $(SERVER_BINARY)
 	rm -f $(GEN_DIR)/*.pb.go $(GEN_DIR)/*_grpc.pb.go
 
 $(PROTOC_GEN_GO):

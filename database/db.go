@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	_ "embed"
 	"fmt"
 	"time"
 
@@ -11,23 +12,8 @@ import (
 
 const watcherNotFound = "watcher %s not found"
 
-const schema = `
-CREATE TABLE IF NOT EXISTS file_watchers (
-	id          TEXT PRIMARY KEY,
-	name        TEXT NOT NULL,
-	source_path TEXT NOT NULL,
-	enabled     INTEGER NOT NULL DEFAULT 0,
-	created_at  TEXT NOT NULL,
-	updated_at  TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS watched_files (
-	id          TEXT PRIMARY KEY,
-	watcher_id  TEXT NOT NULL REFERENCES file_watchers(id) ON DELETE CASCADE,
-	file_path   TEXT NOT NULL,
-	detected_at TEXT NOT NULL
-);
-`
+//go:embed schema.sql
+var schema string
 
 // DB wraps a SQLite connection.
 type DB struct {
@@ -121,7 +107,7 @@ func (db *DB) UpdateWatcher(id, name, sourcePath string) (*FileWatcher, error) {
 
 // DeleteWatcher removes a FileWatcher (and its watched_files via cascade).
 func (db *DB) DeleteWatcher(id string) error {
-	res, err := db.conn.Exec(`DELETE FROM file_watchers WHERE id=?`, id)
+	res, err := db.conn.Exec(`DELETE FROM file_watchers WHERE name=?`, id)
 	if err != nil {
 		return fmt.Errorf("delete watcher: %w", err)
 	}

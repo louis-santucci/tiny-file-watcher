@@ -46,7 +46,7 @@ message UpdateWatcherRequest {
 }
 
 message DeleteWatcherRequest {
-  string id = 1;
+  string name = 1;
 }
 
 message DeleteWatcherResponse {

@@ -67,8 +67,8 @@ func (s *Server) UpdateWatcher(_ context.Context, req *pb.UpdateWatcherRequest) 
 
 func (s *Server) DeleteWatcher(_ context.Context, req *pb.DeleteWatcherRequest) (*pb.DeleteWatcherResponse, error) {
 	// Stop goroutine before deleting from DB.
-	s.manager.Stop(req.Id)
-	if err := s.db.DeleteWatcher(req.Id); err != nil {
+	s.manager.Stop(req.Name)
+	if err := s.db.DeleteWatcher(req.Name); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete watcher: %v", err)
 	}
 	return &pb.DeleteWatcherResponse{Success: true}, nil
@@ -82,7 +82,7 @@ func (s *Server) ToggleWatcher(_ context.Context, req *pb.ToggleWatcherRequest) 
 	if w.Enabled {
 		if err := s.manager.Start(w.ID, w.SourcePath); err != nil {
 			// Roll back toggle on failure.
-			s.db.ToggleWatcher(req.Id)
+			_, _ = s.db.ToggleWatcher(req.Id)
 			return nil, status.Errorf(codes.Internal, "start watcher goroutine: %v", err)
 		}
 	} else {

@@ -1,11 +1,12 @@
 package watcher
 
 import (
-	"log"
+	"log/slog"
 	"sync"
 
-	"github.com/fsnotify/fsnotify"
 	"tiny-file-watcher/database"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 // Manager manages one fsnotify goroutine per enabled FileWatcher.
@@ -30,6 +31,7 @@ func (m *Manager) Start(id, sourcePath string) error {
 	defer m.mu.Unlock()
 
 	if _, running := m.watchers[id]; running {
+		slog.Warn("watcher already running", "watcher_id", id)
 		return nil
 	}
 
@@ -44,6 +46,7 @@ func (m *Manager) Start(id, sourcePath string) error {
 
 	m.watchers[id] = fw
 	go m.loop(id, fw)
+	slog.Info("watcher started", "watcher_id", id, "path", sourcePath)
 	return nil
 }
 
@@ -56,6 +59,7 @@ func (m *Manager) Stop(id string) {
 	if fw, ok := m.watchers[id]; ok {
 		fw.Close()
 		delete(m.watchers, id)
+		slog.Info("watcher stopped", "watcher_id", id)
 	}
 }
 
@@ -78,15 +82,16 @@ func (m *Manager) loop(id string, fw *fsnotify.Watcher) {
 			switch {
 			case event.Has(fsnotify.Create):
 				if _, err := m.db.AddWatchedFile(id, event.Name); err != nil {
-					log.Printf("watcher %s: add file %q: %v", id, event.Name, err)
+					slog.Error("error adding file", "watcher_id", id, "event", event.Name, "err", err)
 				} else {
-					log.Printf("watcher %s: created %q", id, event.Name)
+					slog.Debug("file created", "watcher_id", id, "event", event.Name)
 				}
 			case event.Has(fsnotify.Remove):
 				if err := m.db.RemoveWatchedFile(id, event.Name); err != nil {
-					log.Printf("watcher %s: remove file %q: %v", id, event.Name, err)
+					slog.Error("error removing file", "watcher_id", id, "event", event.Name, "err", err)
+
 				} else {
-					log.Printf("watcher %s: removed %q", id, event.Name)
+					slog.Debug("file deleted", "watcher_id", id, "event", event.Name)
 				}
 				// Write and Rename events are intentionally ignored.
 			}
@@ -94,7 +99,7 @@ func (m *Manager) loop(id string, fw *fsnotify.Watcher) {
 			if !ok {
 				return
 			}
-			log.Printf("watcher %s error: %v", id, err)
+			slog.Error("watcher error", "watcher_id", id, "err", err)
 		}
 	}
 }

@@ -1,11 +1,18 @@
 package main
 
 import (
+	"context"
+	"flag"
 	"log"
 	"net"
+	"net/http"
 	"os"
+	"time"
+	"tiny-file-watcher/interceptor"
 
+	"github.com/fullstorydev/grpcui/standalone"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
 
 	"tiny-file-watcher/database"
@@ -20,6 +27,9 @@ const (
 )
 
 func main() {
+	debugUI := flag.Bool("debug-ui", false, "start a grpcui debug web UI on :8080")
+	flag.Parse()
+
 	addr := envOrDefault("GRPC_ADDR", defaultAddr)
 	dbPath := envOrDefault("DB_PATH", defaultDBPath)
 
@@ -49,13 +59,36 @@ func main() {
 		log.Fatalf("listen %s: %v", addr, err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(interceptor.UnaryLoggingInterceptor))
 	reflection.Register(grpcServer)
 	pb.RegisterFileWatcherServiceServer(grpcServer, NewServer(db, mgr))
 
 	log.Printf("gRPC server listening on %s", addr)
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("serve: %v", err)
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("serve: %v", err)
+		}
+	}()
+
+	if *debugUI {
+		const debugUIAddr = ":8080"
+		// Give the gRPC server a moment to be ready before dialing.
+		time.Sleep(100 * time.Millisecond)
+		cc, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			log.Fatalf("debug-ui: dial gRPC: %v", err)
+		}
+		defer cc.Close()
+		h, err := standalone.HandlerViaReflection(context.Background(), cc, addr)
+		if err != nil {
+			log.Fatalf("debug-ui: create handler: %v", err)
+		}
+		log.Printf("gRPC debug UI available at http://localhost%s", debugUIAddr)
+		if err := http.ListenAndServe(debugUIAddr, h); err != nil {
+			log.Fatalf("debug-ui: serve: %v", err)
+		}
+	} else {
+		select {}
 	}
 }
 

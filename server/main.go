@@ -8,16 +8,16 @@ import (
 	"net/http"
 	"os"
 	"time"
-	"tiny-file-watcher/interceptor"
+	pb "tiny-file-watcher/gen/grpc"
+	"tiny-file-watcher/server/database"
+	"tiny-file-watcher/server/interceptor"
+	"tiny-file-watcher/server/service"
+	"tiny-file-watcher/server/watcher"
 
 	"github.com/fullstorydev/grpcui/standalone"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
-
-	"tiny-file-watcher/database"
-	pb "tiny-file-watcher/gen/filewatcher"
-	"tiny-file-watcher/watcher"
 )
 
 const (
@@ -61,7 +61,7 @@ func main() {
 
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(interceptor.UnaryLoggingInterceptor))
 	reflection.Register(grpcServer)
-	pb.RegisterFileWatcherServiceServer(grpcServer, NewServer(db, mgr))
+	pb.RegisterFileWatcherServiceServer(grpcServer, service.NewServer(db, mgr))
 
 	log.Printf("gRPC server listening on %s", addr)
 	go func() {

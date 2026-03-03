@@ -1,7 +1,7 @@
 BINARY      := tfw
 SERVER_PKG  := ./server
-PROTO_DIR   := api
-GEN_DIR     := gen/filewatcher
+PROTO_DIR   := grpc
+GEN_DIR     := gen/grpc
 PROTO_FILE  := $(PROTO_DIR)/filewatcher.proto
 GOPATH      := $(shell go env GOPATH)
 INSTALL_DIR := $(GOPATH)/bin

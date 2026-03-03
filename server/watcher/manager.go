@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"tiny-file-watcher/database"
+	"tiny-file-watcher/server/database"
 
 	"github.com/fsnotify/fsnotify"
 )

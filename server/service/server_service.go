@@ -1,15 +1,15 @@
-package main
+package service
 
 import (
 	"context"
+	"tiny-file-watcher/server/watcher"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"tiny-file-watcher/database"
-	pb "tiny-file-watcher/gen/filewatcher"
-	"tiny-file-watcher/watcher"
+	pb "tiny-file-watcher/gen/grpc"
+	"tiny-file-watcher/server/database"
 )
 
 // Server implements the FileWatcherService gRPC server.

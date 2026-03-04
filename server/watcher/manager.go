@@ -12,26 +12,31 @@ import (
 // Manager manages one fsnotify goroutine per enabled FileWatcher.
 type Manager struct {
 	mu       sync.Mutex
-	watchers map[string]*fsnotify.Watcher // watcher ID → fsnotify handle
+	watchers map[WatcherKey]*fsnotify.Watcher // watcher ID → fsnotify handle
 	db       *database.DB
+}
+
+type WatcherKey struct {
+	Id   int64
+	Name string
 }
 
 // NewManager creates a new Manager backed by the given database.
 func NewManager(db *database.DB) *Manager {
 	return &Manager{
-		watchers: make(map[string]*fsnotify.Watcher),
+		watchers: make(map[WatcherKey]*fsnotify.Watcher),
 		db:       db,
 	}
 }
 
 // Start begins watching sourcePath for the given watcher ID.
 // It is a no-op if the watcher is already running.
-func (m *Manager) Start(id, sourcePath string) error {
+func (m *Manager) Start(key WatcherKey, sourcePath string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, running := m.watchers[id]; running {
-		slog.Warn("watcher already running", "watcher_id", id)
+	if _, running := m.watchers[key]; running {
+		slog.Warn("watcher already running", "watcher_name", key.Name, "watcher_id", key.Id)
 		return nil
 	}
 
@@ -44,35 +49,35 @@ func (m *Manager) Start(id, sourcePath string) error {
 		return err
 	}
 
-	m.watchers[id] = fw
-	go m.loop(id, fw)
-	slog.Info("watcher started", "watcher_id", id, "path", sourcePath)
+	m.watchers[key] = fw
+	go m.loop(key, fw)
+	slog.Info("watcher started", "watcher_name", key.Name, "watcher_id", key.Id, "path", sourcePath)
 	return nil
 }
 
 // Stop halts the goroutine for the given watcher ID.
 // It is a no-op if the watcher is not running.
-func (m *Manager) Stop(id string) {
+func (m *Manager) Stop(key WatcherKey) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if fw, ok := m.watchers[id]; ok {
+	if fw, ok := m.watchers[key]; ok {
 		fw.Close()
-		delete(m.watchers, id)
-		slog.Info("watcher stopped", "watcher_id", id)
+		delete(m.watchers, key)
+		slog.Info("watcher stopped", "watcher_name", key.Name, "watcher_id", key.Id, "watcher_name", key.Name)
 	}
 }
 
 // IsRunning reports whether a goroutine is active for the given ID.
-func (m *Manager) IsRunning(id string) bool {
+func (m *Manager) IsRunning(key WatcherKey) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	_, ok := m.watchers[id]
+	_, ok := m.watchers[key]
 	return ok
 }
 
 // loop processes fsnotify events until the watcher is closed.
-func (m *Manager) loop(id string, fw *fsnotify.Watcher) {
+func (m *Manager) loop(key WatcherKey, fw *fsnotify.Watcher) {
 	for {
 		select {
 		case event, ok := <-fw.Events:
@@ -81,17 +86,17 @@ func (m *Manager) loop(id string, fw *fsnotify.Watcher) {
 			}
 			switch {
 			case event.Has(fsnotify.Create):
-				if _, err := m.db.AddWatchedFile(id, event.Name); err != nil {
-					slog.Error("error adding file", "watcher_id", id, "event", event.Name, "err", err)
+				if _, err := m.db.AddWatchedFile(key.Id, event.Name); err != nil {
+					slog.Error("error adding file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
 				} else {
-					slog.Debug("file created", "watcher_id", id, "event", event.Name)
+					slog.Debug("file created", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name)
 				}
 			case event.Has(fsnotify.Remove):
-				if err := m.db.RemoveWatchedFile(id, event.Name); err != nil {
-					slog.Error("error removing file", "watcher_id", id, "event", event.Name, "err", err)
+				if err := m.db.RemoveWatchedFile(key.Id, event.Name); err != nil {
+					slog.Error("error removing file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
 
 				} else {
-					slog.Debug("file deleted", "watcher_id", id, "event", event.Name)
+					slog.Debug("file deleted", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name)
 				}
 				// Write and Rename events are intentionally ignored.
 			}
@@ -99,7 +104,7 @@ func (m *Manager) loop(id string, fw *fsnotify.Watcher) {
 			if !ok {
 				return
 			}
-			slog.Error("watcher error", "watcher_id", id, "err", err)
+			slog.Error("watcher error", "watcher_name", key.Name, "watcher_id", key.Id, "err", err)
 		}
 	}
 }

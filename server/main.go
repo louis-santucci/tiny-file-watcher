@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	_ "embed"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -19,8 +21,11 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-func main() {
+//go:embed banner.txt
+var banner string
 
+func main() {
+	fmt.Println(banner)
 	config := config2.InitConfig()
 	config2.InitLogging()
 	err := config.Load()

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-	"tiny-file-watcher/server/tests/mocks"
+	"tiny-file-watcher/server/test/mocks"
 
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/watcher"

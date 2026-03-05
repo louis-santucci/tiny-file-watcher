@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 	"time"
-	"tiny-file-watcher/server/tests/mocks"
+	"tiny-file-watcher/server/test/mocks"
 
 	pb "tiny-file-watcher/gen/grpc"
 	"tiny-file-watcher/server/database"

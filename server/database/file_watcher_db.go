@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -66,12 +67,29 @@ func (db *DB) ListWatchers() ([]*FileWatcher, error) {
 }
 
 // UpdateWatcher updates name and source_path for the given ID.
-func (db *DB) UpdateWatcher(id int64, name, sourcePath string) (*FileWatcher, error) {
+func (db *DB) UpdateWatcher(id int64, name string, sourcePath string) (*FileWatcher, error) {
+	if name == "" && sourcePath == "" {
+		return db.GetWatcherById(id)
+	}
+
 	now := time.Now().UTC()
-	res, err := db.conn.Exec(
-		`UPDATE file_watchers SET name=?, source_path=?, updated_at=? WHERE id=?`,
-		name, sourcePath, now.Format(time.RFC3339), id,
-	)
+	setClauses := []string{}
+	args := []any{}
+
+	if name != "" {
+		setClauses = append(setClauses, "name=?")
+		args = append(args, name)
+	}
+	if sourcePath != "" {
+		setClauses = append(setClauses, "source_path=?")
+		args = append(args, sourcePath)
+	}
+	setClauses = append(setClauses, "updated_at=?")
+	args = append(args, now.Format(time.RFC3339))
+	args = append(args, id)
+
+	query := fmt.Sprintf("UPDATE file_watchers SET %s WHERE id=?", strings.Join(setClauses, ", "))
+	res, err := db.conn.Exec(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("update watcher: %w", err)
 	}

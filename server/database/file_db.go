@@ -2,6 +2,8 @@ package database
 
 import (
 	"fmt"
+	"log/slog"
+	"strings"
 	"time"
 )
 
@@ -12,6 +14,17 @@ type WatchedFile struct {
 	FilePath   string
 	Flushed    bool
 	DetectedAt time.Time
+}
+
+// PendingFlush mirrors one row of the pending_file_flushes view.
+type PendingFlush struct {
+	WatchedFileID int64
+	WatcherID     int64
+	WatcherName   string
+	FilePath      string
+	FileName      string
+	RedirectionID int64
+	TargetPath    string
 }
 
 // AddWatchedFile inserts a newly detected file.
@@ -40,11 +53,44 @@ func (db *DB) RemoveWatchedFile(watcherID int64, filePath string) error {
 }
 
 func (db *DB) FlushWatchedFiles(ids []int64) error {
-	_, err := db.conn.Exec(`UPDATE watched_files SET flushed=1 WHERE watcher_id in ?`, ids)
+	if len(ids) == 0 {
+		slog.Warn("no files to flush")
+		return nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := "UPDATE watched_files SET flushed=1 WHERE id IN (" + strings.Join(placeholders, ",") + ")"
+
+	_, err := db.conn.Exec(query, args...)
 	if err != nil {
 		return fmt.Errorf("flush watched files: %w", err)
 	}
 	return nil
+}
+
+func (db *DB) ListPendingFlushes(name string) ([]*PendingFlush, error) {
+	rows, err := db.conn.Query(
+		`SELECT watched_file_id, watcher_id, watcher_name, file_path, file_name, target_path, redirection_id
+			FROM pending_file_flushes WHERE watcher_name = ?`, name)
+	if err != nil {
+		return nil, fmt.Errorf("list pending flushes: %w", err)
+	}
+	defer rows.Close()
+	var result []*PendingFlush
+	for rows.Next() {
+		var pf PendingFlush
+		if err := rows.Scan(&pf.WatchedFileID, &pf.WatcherID, &pf.WatcherName, &pf.FilePath, &pf.FileName, &pf.TargetPath, &pf.RedirectionID); err != nil {
+			return nil, fmt.Errorf("scan pending flush: %w", err)
+		}
+		result = append(result, &pf)
+	}
+	return result, rows.Err()
 }
 
 func extractFileName(path string) string {

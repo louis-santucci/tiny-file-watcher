@@ -67,7 +67,7 @@ func main() {
 
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(interceptor.UnaryLoggingInterceptor))
 	reflection.Register(grpcServer)
-	pb.RegisterFileWatcherServiceServer(grpcServer, watcher.NewManagerService(db, mgr))
+	pb.RegisterFileWatcherServiceServer(grpcServer, watcher.NewManagerService(db, db, mgr))
 
 	log.Printf("gRPC server listening on %s", addr)
 	go func() {

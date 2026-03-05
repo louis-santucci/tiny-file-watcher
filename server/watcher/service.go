@@ -14,19 +14,20 @@ import (
 // WatcherService implements the FileWatcherService gRPC server.
 type WatcherService struct {
 	pb.UnimplementedFileWatcherServiceServer
-	db      FileWatcherRepository
-	manager WatcherManager
+	fileWatcherRepository FileWatcherRepository
+	fileRepository        FileRepository
+	manager               WatcherManager
 }
 
-func NewManagerService(db FileWatcherRepository, mgr WatcherManager) *WatcherService {
-	return &WatcherService{db: db, manager: mgr}
+func NewManagerService(fileWatcherRepository FileWatcherRepository, fileRepository FileRepository, mgr WatcherManager) *WatcherService {
+	return &WatcherService{fileWatcherRepository: fileWatcherRepository, manager: mgr, fileRepository: fileRepository}
 }
 
 func (s *WatcherService) CreateWatcher(_ context.Context, req *pb.CreateWatcherRequest) (*pb.Watcher, error) {
 	if req.Name == "" || req.SourcePath == "" {
 		return nil, status.Error(codes.InvalidArgument, "name and source_path are required")
 	}
-	w, err := s.db.CreateWatcher(req.Name, req.SourcePath)
+	w, err := s.fileWatcherRepository.CreateWatcher(req.Name, req.SourcePath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create watcher: %v", err)
 	}
@@ -34,7 +35,7 @@ func (s *WatcherService) CreateWatcher(_ context.Context, req *pb.CreateWatcherR
 }
 
 func (s *WatcherService) GetWatcherById(_ context.Context, req *pb.GetWatcherByIdRequest) (*pb.Watcher, error) {
-	w, err := s.db.GetWatcherById(req.Id)
+	w, err := s.fileWatcherRepository.GetWatcherById(req.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "watcher with id %d not found", req.Id)
 	}
@@ -42,7 +43,7 @@ func (s *WatcherService) GetWatcherById(_ context.Context, req *pb.GetWatcherByI
 }
 
 func (s *WatcherService) GetWatcherByName(_ context.Context, req *pb.GetWatcherByNameRequest) (*pb.Watcher, error) {
-	w, err := s.db.GetWatcherByName(req.Name)
+	w, err := s.fileWatcherRepository.GetWatcherByName(req.Name)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "watcher %s not found", req.Name)
 	}
@@ -50,7 +51,7 @@ func (s *WatcherService) GetWatcherByName(_ context.Context, req *pb.GetWatcherB
 }
 
 func (s *WatcherService) ListWatchers(_ context.Context, _ *pb.ListWatchersRequest) (*pb.ListWatchersResponse, error) {
-	watchers, err := s.db.ListWatchers()
+	watchers, err := s.fileWatcherRepository.ListWatchers()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list watchers: %v", err)
 	}
@@ -65,7 +66,7 @@ func (s *WatcherService) UpdateWatcher(_ context.Context, req *pb.UpdateWatcherR
 	if req.Id < 1 {
 		return nil, status.Error(codes.InvalidArgument, "id is invalid (id must be a positive integer)")
 	}
-	w, err := s.db.UpdateWatcher(req.Id, req.Name, req.SourcePath)
+	w, err := s.fileWatcherRepository.UpdateWatcher(req.Id, req.Name, req.SourcePath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "update watcher: %v", err)
 	}
@@ -73,21 +74,21 @@ func (s *WatcherService) UpdateWatcher(_ context.Context, req *pb.UpdateWatcherR
 }
 
 func (s *WatcherService) DeleteWatcher(_ context.Context, req *pb.DeleteWatcherRequest) (*pb.DeleteWatcherResponse, error) {
-	watcher, err := s.db.GetWatcherByName(req.Name)
+	watcher, err := s.fileWatcherRepository.GetWatcherByName(req.Name)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "watcher %s not found", req.Name)
 	}
 	// Stop goroutine before deleting from DB.
 	key := WatcherKey{Id: watcher.ID, Name: watcher.Name}
 	s.manager.Stop(key)
-	if err := s.db.DeleteWatcher(req.Name); err != nil {
+	if err := s.fileWatcherRepository.DeleteWatcher(req.Name); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete watcher: %v", err)
 	}
 	return &pb.DeleteWatcherResponse{Success: true}, nil
 }
 
 func (s *WatcherService) ToggleWatcher(_ context.Context, req *pb.ToggleWatcherRequest) (*pb.Watcher, error) {
-	w, err := s.db.ToggleWatcher(req.Name)
+	w, err := s.fileWatcherRepository.ToggleWatcher(req.Name)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "toggle watcher: %v", err)
 	}
@@ -95,7 +96,7 @@ func (s *WatcherService) ToggleWatcher(_ context.Context, req *pb.ToggleWatcherR
 	if w.Enabled {
 		if err := s.manager.Start(key, w.SourcePath); err != nil {
 			// Roll back toggle on failure.
-			_, _ = s.db.ToggleWatcher(req.Name)
+			_, _ = s.fileWatcherRepository.ToggleWatcher(req.Name)
 			return nil, status.Errorf(codes.Internal, "start watcher goroutine: %v", err)
 		}
 	} else {

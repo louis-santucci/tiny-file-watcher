@@ -9,9 +9,9 @@ import (
 
 // Manager manages one fsnotify goroutine per enabled FileWatcher.
 type Manager struct {
-	mu       sync.Mutex
-	watchers map[WatcherKey]*fsnotify.Watcher // watcher ID → fsnotify handle
-	db       FileRepository
+	mu             sync.Mutex
+	watchers       map[WatcherKey]*fsnotify.Watcher // watcher ID → fsnotify handle
+	fileRepository FileRepository
 }
 
 type WatcherKey struct {
@@ -20,10 +20,10 @@ type WatcherKey struct {
 }
 
 // NewManager creates a new Manager backed by the given FileRepository.
-func NewManager(db FileRepository) *Manager {
+func NewManager(fileRepository FileRepository) *Manager {
 	return &Manager{
-		watchers: make(map[WatcherKey]*fsnotify.Watcher),
-		db:       db,
+		watchers:       make(map[WatcherKey]*fsnotify.Watcher),
+		fileRepository: fileRepository,
 	}
 }
 
@@ -84,13 +84,13 @@ func (m *Manager) loop(key WatcherKey, fw *fsnotify.Watcher) {
 			}
 			switch {
 			case event.Has(fsnotify.Create):
-				if _, err := m.db.AddWatchedFile(key.Id, event.Name, false); err != nil {
+				if _, err := m.fileRepository.AddWatchedFile(key.Id, event.Name, false); err != nil {
 					slog.Error("error adding file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
 				} else {
 					slog.Debug("file created", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name)
 				}
 			case event.Has(fsnotify.Remove):
-				if err := m.db.RemoveWatchedFile(key.Id, event.Name); err != nil {
+				if err := m.fileRepository.RemoveWatchedFile(key.Id, event.Name); err != nil {
 					slog.Error("error removing file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
 
 				} else {

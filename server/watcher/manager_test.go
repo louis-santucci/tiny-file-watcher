@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+	"tiny-file-watcher/server/tests/mocks"
 
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/watcher"
-	"tiny-file-watcher/server/watcher/mocks"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

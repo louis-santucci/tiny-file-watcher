@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 	"time"
+	"tiny-file-watcher/server/tests/mocks"
 
 	pb "tiny-file-watcher/gen/grpc"
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/watcher"
-	"tiny-file-watcher/server/watcher/mocks"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

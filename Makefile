@@ -25,8 +25,8 @@ install-tools:
 
 ## generate: regenerate Go code from .proto file
 generate: $(PROTO_FILE) | $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_GRPC)
-	mkdir -p $(GEN_DIR)
-	protoc \
+	@mkdir -p $(GEN_DIR)
+	@protoc \
 		--proto_path=$(PROTO_DIR) \
 		--go_out=$(GEN_DIR) --go_opt=paths=source_relative \
 		--go-grpc_out=$(GEN_DIR) --go-grpc_opt=paths=source_relative \
@@ -34,19 +34,19 @@ generate: $(PROTO_FILE) | $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_GRPC)
 
 ## build: compile the server binary
 build: generate
-	go build -o $(SERVER_BINARY) $(SERVER_PKG)
+	@go build -o $(SERVER_BINARY) $(SERVER_PKG)
 
 ## install: build and copy binary to GOPATH/bin
 install: build
-	install -m 0755 $(SERVER_BINARY) $(INSTALL_DIR)/$(SERVER_BINARY)
+	@install -m 0755 $(SERVER_BINARY) $(INSTALL_DIR)/$(SERVER_BINARY)
 
 ## test: run all tests
 test: generate
-	go test -race ./...
+	@go test -race -v ./...
 
 ## lint: run golangci-lint
 lint: generate | $(GOLANGCI_LINT)
-	golangci-lint run ./...
+	@golangci-lint run ./...
 
 ## clean: remove built binary and generated proto files
 clean:
@@ -54,10 +54,10 @@ clean:
 	rm -f $(GEN_DIR)/*.pb.go $(GEN_DIR)/*_grpc.pb.go
 
 $(PROTOC_GEN_GO):
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	@go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 
 $(PROTOC_GEN_GO_GRPC):
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	@go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 $(GOLANGCI_LINT):
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest

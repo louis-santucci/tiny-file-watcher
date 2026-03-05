@@ -111,7 +111,7 @@ func TestManager_Loop_CreateEvent_CallsAddWatchedFile(t *testing.T) {
 
 	newFile := filepath.Join(dir, "newfile.txt")
 	done := make(chan struct{})
-	repo.On("AddWatchedFile", key1.Id, newFile).
+	repo.On("AddWatchedFile", key1.Id, newFile, false).
 		Return(&database.WatchedFile{}, nil).
 		Run(func(_ mock.Arguments) { close(done) })
 

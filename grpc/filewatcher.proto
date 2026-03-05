@@ -21,12 +21,17 @@ message WatchedFile {
   int64 id = 1;
   string watcher_id = 2;
   string file_path = 3;
-  google.protobuf.Timestamp detected_at = 4;
+  bool flushed = 4;
+  google.protobuf.Timestamp detected_at = 5;
 }
 
 message CreateWatcherRequest {
   string name = 1;
   string source_path = 2;
+}
+
+message FlushWatcherRequest {
+  string name = 1;
 }
 
 message GetWatcherByNameRequest {
@@ -57,6 +62,10 @@ message DeleteWatcherResponse {
   bool success = 1;
 }
 
+message FlushWatcherResponse {
+  bool success = 1;
+}
+
 message ToggleWatcherRequest {
   string name = 1;
 }
@@ -69,4 +78,5 @@ service FileWatcherService {
   rpc UpdateWatcher(UpdateWatcherRequest)       returns (Watcher);
   rpc DeleteWatcher(DeleteWatcherRequest)       returns (DeleteWatcherResponse);
   rpc ToggleWatcher(ToggleWatcherRequest)       returns (Watcher);
+  rpc FlushWatcher(FlushWatcherRequest)         returns (FlushWatcherResponse);
 }

@@ -84,7 +84,7 @@ func (m *Manager) loop(key WatcherKey, fw *fsnotify.Watcher) {
 			}
 			switch {
 			case event.Has(fsnotify.Create):
-				if _, err := m.db.AddWatchedFile(key.Id, event.Name); err != nil {
+				if _, err := m.db.AddWatchedFile(key.Id, event.Name, false); err != nil {
 					slog.Error("error adding file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
 				} else {
 					slog.Debug("file created", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name)

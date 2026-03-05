@@ -25,6 +25,16 @@ message WatchedFile {
   google.protobuf.Timestamp detected_at = 5;
 }
 
+message GetFileRedirectionRequest {
+  string name = 1;
+}
+
+message CreateFileRedirectionRequest {
+  string watcher_name = 1;
+  string target_path = 2;
+  bool auto_flush = 3;
+}
+
 message CreateWatcherRequest {
   string name = 1;
   string source_path = 2;
@@ -70,6 +80,16 @@ message ToggleWatcherRequest {
   string name = 1;
 }
 
+message FileRedirectionResponse {
+  int64 id = 1;
+  string watcher_name = 2;
+  string source_path = 3;
+  string target_path = 4;
+  bool auto_flush = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
 service FileWatcherService {
   rpc CreateWatcher(CreateWatcherRequest)       returns (Watcher);
   rpc GetWatcherById(GetWatcherByIdRequest)     returns (Watcher);
@@ -79,4 +99,9 @@ service FileWatcherService {
   rpc DeleteWatcher(DeleteWatcherRequest)       returns (DeleteWatcherResponse);
   rpc ToggleWatcher(ToggleWatcherRequest)       returns (Watcher);
   rpc FlushWatcher(FlushWatcherRequest)         returns (FlushWatcherResponse);
+}
+
+service FileRedirectionService {
+  rpc GetFileRedirection(GetFileRedirectionRequest) returns (FileRedirectionResponse);
+  rpc CreateFileRedirection(CreateFileRedirectionRequest) returns (FileRedirectionResponse);
 }

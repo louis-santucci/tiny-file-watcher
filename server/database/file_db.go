@@ -23,7 +23,6 @@ type PendingFlush struct {
 	WatcherName   string
 	FilePath      string
 	FileName      string
-	RedirectionID int64
 	TargetPath    string
 }
 
@@ -76,7 +75,7 @@ func (db *DB) FlushWatchedFiles(ids []int64) error {
 
 func (db *DB) ListPendingFlushes(name string) ([]*PendingFlush, error) {
 	rows, err := db.conn.Query(
-		`SELECT watched_file_id, watcher_id, watcher_name, file_path, file_name, target_path, redirection_id
+		`SELECT watched_file_id, watcher_id, watcher_name, file_path, file_name, target_path
 			FROM pending_file_flushes WHERE watcher_name = ?`, name)
 	if err != nil {
 		return nil, fmt.Errorf("list pending flushes: %w", err)
@@ -85,7 +84,7 @@ func (db *DB) ListPendingFlushes(name string) ([]*PendingFlush, error) {
 	var result []*PendingFlush
 	for rows.Next() {
 		var pf PendingFlush
-		if err := rows.Scan(&pf.WatchedFileID, &pf.WatcherID, &pf.WatcherName, &pf.FilePath, &pf.FileName, &pf.TargetPath, &pf.RedirectionID); err != nil {
+		if err := rows.Scan(&pf.WatchedFileID, &pf.WatcherID, &pf.WatcherName, &pf.FilePath, &pf.FileName, &pf.TargetPath); err != nil {
 			return nil, fmt.Errorf("scan pending flush: %w", err)
 		}
 		result = append(result, &pf)

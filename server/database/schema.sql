@@ -20,14 +20,11 @@ CREATE TABLE IF NOT EXISTS watched_files
 
 CREATE TABLE IF NOT EXISTS file_redirections
 (
-    id          INTEGER PRIMARY KEY,
-    watcher_id  INTEGER NOT NULL REFERENCES file_watchers (id) ON DELETE CASCADE,
-    target_path TEXT    NOT NULL,
-    created_at  TEXT    NOT NULL,
-    updated_at  TEXT    NOT NULL
+    watcher_id  INTEGER PRIMARY KEY REFERENCES file_watchers (id) ON DELETE CASCADE,
+    target_path TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_file_redirections_watcher_id ON file_redirections (watcher_id);
 
 -- View: all unflushed files paired with their watcher's redirection target.
 -- Files whose watcher has no redirection are excluded and remain unflushed.
@@ -37,7 +34,6 @@ SELECT wf.id          AS watched_file_id,
        fw.name        AS watcher_name,
        wf.file_path   AS file_path,
        wf.file_name   AS file_name,
-       fr.id          AS redirection_id,
        fr.target_path AS target_path
 FROM watched_files wf
          INNER JOIN file_redirections fr ON fr.watcher_id = wf.watcher_id

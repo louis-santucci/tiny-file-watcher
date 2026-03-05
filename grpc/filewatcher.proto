@@ -16,6 +16,16 @@ message Watcher {
   google.protobuf.Timestamp updated_at = 6;
 }
 
+message FileRedirection {
+  int64 id = 1;
+  string watcher_name = 2;
+  string source_path = 3;
+  string target_path = 4;
+  bool auto_flush = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
 // WatchedFile represents a file detected by an active watcher.
 message WatchedFile {
   int64 id = 1;
@@ -33,6 +43,16 @@ message CreateFileRedirectionRequest {
   string watcher_name = 1;
   string target_path = 2;
   bool auto_flush = 3;
+}
+
+message UpdateFileRedirectionRequest {
+  string watcher_name = 1;
+  string target_path = 2;
+  bool auto_flush = 3;
+}
+
+message DeleteFileRedirectionRequest {
+  string watcher_name = 1;
 }
 
 message CreateWatcherRequest {
@@ -72,22 +92,16 @@ message DeleteWatcherResponse {
   bool success = 1;
 }
 
+message DeleteFileRedirectionResponse {
+  bool success = 1;
+}
+
 message FlushWatcherResponse {
   bool success = 1;
 }
 
 message ToggleWatcherRequest {
   string name = 1;
-}
-
-message FileRedirectionResponse {
-  int64 id = 1;
-  string watcher_name = 2;
-  string source_path = 3;
-  string target_path = 4;
-  bool auto_flush = 5;
-  google.protobuf.Timestamp created_at = 6;
-  google.protobuf.Timestamp updated_at = 7;
 }
 
 service FileWatcherService {
@@ -102,6 +116,8 @@ service FileWatcherService {
 }
 
 service FileRedirectionService {
-  rpc GetFileRedirection(GetFileRedirectionRequest) returns (FileRedirectionResponse);
-  rpc CreateFileRedirection(CreateFileRedirectionRequest) returns (FileRedirectionResponse);
+  rpc GetFileRedirection(GetFileRedirectionRequest) returns (FileRedirection);
+  rpc CreateFileRedirection(CreateFileRedirectionRequest) returns (FileRedirection);
+  rpc UpdateFileRedirection(UpdateFileRedirectionRequest) returns (FileRedirection);
+  rpc DeleteFileRedirection(DeleteFileRedirectionRequest) returns (DeleteFileRedirectionResponse);
 }

@@ -15,10 +15,10 @@ import (
 type WatcherService struct {
 	pb.UnimplementedFileWatcherServiceServer
 	db      FileWatcherRepository
-	manager *Manager
+	manager WatcherManager
 }
 
-func NewManagerService(db FileWatcherRepository, mgr *Manager) *WatcherService {
+func NewManagerService(db FileWatcherRepository, mgr WatcherManager) *WatcherService {
 	return &WatcherService{db: db, manager: mgr}
 }
 

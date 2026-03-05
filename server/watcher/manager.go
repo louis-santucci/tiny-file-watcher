@@ -3,7 +3,6 @@ package watcher
 import (
 	"log/slog"
 	"sync"
-	"tiny-file-watcher/server/database"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -12,7 +11,7 @@ import (
 type Manager struct {
 	mu       sync.Mutex
 	watchers map[WatcherKey]*fsnotify.Watcher // watcher ID → fsnotify handle
-	db       *database.DB
+	db       FileRepository
 }
 
 type WatcherKey struct {
@@ -20,8 +19,8 @@ type WatcherKey struct {
 	Name string
 }
 
-// NewManager creates a new Manager backed by the given database.
-func NewManager(db *database.DB) *Manager {
+// NewManager creates a new Manager backed by the given FileRepository.
+func NewManager(db FileRepository) *Manager {
 	return &Manager{
 		watchers: make(map[WatcherKey]*fsnotify.Watcher),
 		db:       db,

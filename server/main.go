@@ -54,7 +54,7 @@ func main() {
 	for _, w := range enabled {
 		key := watcher.WatcherKey{Id: w.ID, Name: w.Name}
 		if err := mgr.Start(key, w.SourcePath); err != nil {
-			log.Printf("warn: could not resume watcher %s (id %d) (%s): %v", w.ID, w.SourcePath, err)
+			log.Printf("warn: could not resume watcher %s (id %d) (%s): %v", w.Name, w.ID, w.SourcePath, err)
 		} else {
 			log.Printf("resumed watcher %s (id %d) → %s", w.Name, w.ID, w.SourcePath)
 		}

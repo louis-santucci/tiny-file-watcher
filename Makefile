@@ -42,7 +42,7 @@ install: build
 
 ## test: run all tests
 test: generate
-	go test ./...
+	go test -race ./...
 
 ## lint: run golangci-lint
 lint: generate | $(GOLANGCI_LINT)

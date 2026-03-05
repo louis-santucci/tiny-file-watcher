@@ -3,7 +3,6 @@ package watcher
 import (
 	"log/slog"
 	"sync"
-
 	"tiny-file-watcher/server/database"
 
 	"github.com/fsnotify/fsnotify"

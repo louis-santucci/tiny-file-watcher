@@ -14,11 +14,11 @@ import (
 // WatcherService implements the FileWatcherService gRPC server.
 type WatcherService struct {
 	pb.UnimplementedFileWatcherServiceServer
-	db      *database.DB
+	db      FileWatcherRepository
 	manager *Manager
 }
 
-func NewManagerService(db *database.DB, mgr *Manager) *WatcherService {
+func NewManagerService(db FileWatcherRepository, mgr *Manager) *WatcherService {
 	return &WatcherService{db: db, manager: mgr}
 }
 

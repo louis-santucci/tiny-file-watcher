@@ -52,6 +52,29 @@ func (s *FlushService) FlushWatcher(_ context.Context, req *pb.FlushWatcherReque
 	return &pb.FlushWatcherResponse{Success: true}, nil
 }
 
+func (s *FlushService) ListPendingFiles(_ context.Context, req *pb.ListPendingFilesRequest) (*pb.ListPendingFilesResponse, error) {
+	if req.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+
+	pendings, err := s.flushRepository.ListPendingFlushes(req.Name)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list pending flushes: %v", err)
+	}
+
+	files := make([]*pb.WatchedFile, 0, len(pendings))
+	for _, pf := range pendings {
+		files = append(files, &pb.WatchedFile{
+			Id:        pf.WatchedFileID,
+			WatcherId: pf.WatcherName,
+			FilePath:  pf.FilePath,
+			Flushed:   false,
+		})
+	}
+
+	return &pb.ListPendingFilesResponse{Files: files}, nil
+}
+
 func copyFile(src, dst string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("create target directory: %w", err)

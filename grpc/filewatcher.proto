@@ -62,6 +62,14 @@ message FlushWatcherRequest {
   string name = 1;
 }
 
+message ListPendingFilesRequest {
+  string name = 1;
+}
+
+message ListPendingFilesResponse {
+  repeated WatchedFile files = 1;
+}
+
 message GetWatcherByNameRequest {
   string name = 1;
 }
@@ -114,6 +122,7 @@ service FileWatcherService {
 
 service FileFlushService {
   rpc FlushWatcher(FlushWatcherRequest) returns (FlushWatcherResponse);
+  rpc ListPendingFiles(ListPendingFilesRequest) returns (ListPendingFilesResponse);
 }
 
 service FileRedirectionService {

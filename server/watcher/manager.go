@@ -84,13 +84,13 @@ func (m *Manager) loop(key WatcherKey, fw *fsnotify.Watcher) {
 			}
 			switch {
 			case event.Has(fsnotify.Create):
-				if _, err := m.fileRepository.AddWatchedFile(key.Id, event.Name, false); err != nil {
+				if _, err := m.fileRepository.AddWatchedFile(key.Name, event.Name, false); err != nil {
 					slog.Error("error adding file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
 				} else {
 					slog.Debug("file created", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name)
 				}
 			case event.Has(fsnotify.Remove):
-				if err := m.fileRepository.RemoveWatchedFile(key.Id, event.Name); err != nil {
+				if err := m.fileRepository.RemoveWatchedFile(key.Name, event.Name); err != nil {
 					slog.Error("error removing file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
 
 				} else {

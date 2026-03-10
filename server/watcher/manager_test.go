@@ -111,7 +111,7 @@ func TestManager_Loop_CreateEvent_CallsAddWatchedFile(t *testing.T) {
 
 	newFile := filepath.Join(dir, "newfile.txt")
 	done := make(chan struct{})
-	repo.On("AddWatchedFile", key1.Id, newFile, false).
+	repo.On("AddWatchedFile", key1.Name, newFile, false).
 		Return(&database.WatchedFile{}, nil).
 		Run(func(_ mock.Arguments) { close(done) })
 
@@ -143,11 +143,11 @@ func TestManager_Loop_RemoveEvent_CallsRemoveWatchedFile(t *testing.T) {
 	f.Close()
 
 	done := make(chan struct{})
-	repo.On("RemoveWatchedFile", key1.Id, existingFile).
+	repo.On("RemoveWatchedFile", key1.Name, existingFile).
 		Return(nil).
 		Run(func(_ mock.Arguments) { close(done) })
 	// Allow any Create events for the pre-existing file without failing.
-	repo.On("AddWatchedFile", key1.Id, mock.Anything).Return(&database.WatchedFile{}, nil).Maybe()
+	repo.On("AddWatchedFile", key1.Name, mock.Anything).Return(&database.WatchedFile{}, nil).Maybe()
 
 	assert.NoError(t, mgr.Start(key1, dir))
 	defer mgr.Stop(key1)
@@ -160,5 +160,5 @@ func TestManager_Loop_RemoveEvent_CallsRemoveWatchedFile(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for RemoveWatchedFile to be called")
 	}
-	repo.AssertCalled(t, "RemoveWatchedFile", key1.Id, existingFile)
+	repo.AssertCalled(t, "RemoveWatchedFile", key1.Name, existingFile)
 }

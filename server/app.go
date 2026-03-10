@@ -7,8 +7,6 @@ import (
 	"net"
 	"net/http"
 	"time"
-	"tiny-file-watcher/server/redirection"
-
 	pb "tiny-file-watcher/gen/grpc"
 	config2 "tiny-file-watcher/server/config"
 	"tiny-file-watcher/server/database"
@@ -70,7 +68,7 @@ func NewApp() (*App, error) {
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(interceptor.UnaryLoggingInterceptor))
 	reflection.Register(grpcServer)
 	pb.RegisterFileWatcherServiceServer(grpcServer, watcher.NewManagerService(db, db, mgr))
-	pb.RegisterFileRedirectionServiceServer(grpcServer, redirection.NewRedirectionService(db, db))
+	//pb.RegisterFileRedirectionServiceServer(grpcServer, redirection.NewRedirectionService(db, db))
 
 	return &App{
 		config:     cfg,

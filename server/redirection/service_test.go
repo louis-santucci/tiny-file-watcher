@@ -55,7 +55,7 @@ func TestAddRedirection_OK(t *testing.T) {
 	r := newRedirection("my-watcher", "/tmp/out", true)
 	repo.On("AddRedirection", "my-watcher", "/tmp/out", true).Return(r, nil)
 
-	resp, err := svc.AddRedirection(ctx, &pb.CreateFileRedirectionRequest{
+	resp, err := svc.CreateFileRedirection(ctx, &pb.CreateFileRedirectionRequest{
 		WatcherName: "my-watcher",
 		TargetPath:  "/tmp/out",
 		AutoFlush:   true,
@@ -71,7 +71,7 @@ func TestAddRedirection_OK(t *testing.T) {
 func TestAddRedirection_MissingWatcherName(t *testing.T) {
 	svc := newService(&mocks.MockRedirectionRepository{})
 
-	_, err := svc.AddRedirection(ctx, &pb.CreateFileRedirectionRequest{
+	_, err := svc.CreateFileRedirection(ctx, &pb.CreateFileRedirectionRequest{
 		WatcherName: "",
 		TargetPath:  "/tmp/out",
 	})
@@ -82,7 +82,7 @@ func TestAddRedirection_MissingWatcherName(t *testing.T) {
 func TestAddRedirection_MissingTargetPath(t *testing.T) {
 	svc := newService(&mocks.MockRedirectionRepository{})
 
-	_, err := svc.AddRedirection(ctx, &pb.CreateFileRedirectionRequest{
+	_, err := svc.CreateFileRedirection(ctx, &pb.CreateFileRedirectionRequest{
 		WatcherName: "my-watcher",
 		TargetPath:  "",
 	})
@@ -96,7 +96,7 @@ func TestAddRedirection_RepositoryError(t *testing.T) {
 
 	repo.On("AddRedirection", "my-watcher", "/tmp/out", false).Return(nil, errors.New("db error"))
 
-	_, err := svc.AddRedirection(ctx, &pb.CreateFileRedirectionRequest{
+	_, err := svc.CreateFileRedirection(ctx, &pb.CreateFileRedirectionRequest{
 		WatcherName: "my-watcher",
 		TargetPath:  "/tmp/out",
 	})
@@ -114,7 +114,7 @@ func TestGetRedirection_OK(t *testing.T) {
 	r := newRedirection("my-watcher", "/tmp/out", false)
 	repo.On("GetRedirection", "my-watcher").Return(r, nil)
 
-	resp, err := svc.GetRedirection(ctx, &pb.GetFileRedirectionRequest{Name: "my-watcher"})
+	resp, err := svc.GetFileRedirection(ctx, &pb.GetFileRedirectionRequest{Name: "my-watcher"})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "my-watcher", resp.WatcherName)
@@ -128,7 +128,7 @@ func TestGetRedirection_NotFound(t *testing.T) {
 
 	repo.On("GetRedirection", "unknown").Return(nil, errors.New("not found"))
 
-	_, err := svc.GetRedirection(ctx, &pb.GetFileRedirectionRequest{Name: "unknown"})
+	_, err := svc.GetFileRedirection(ctx, &pb.GetFileRedirectionRequest{Name: "unknown"})
 
 	assertCode(t, err, codes.NotFound)
 	repo.AssertExpectations(t)

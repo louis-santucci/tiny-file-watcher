@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS watched_files
 
 CREATE TABLE IF NOT EXISTS file_redirections
 (
-    watcher_name TEXT    PRIMARY KEY REFERENCES file_watchers (name) ON DELETE CASCADE,
+    watcher_name TEXT PRIMARY KEY REFERENCES file_watchers (name) ON DELETE CASCADE,
     target_path  TEXT    NOT NULL,
     auto_flush   INTEGER NOT NULL DEFAULT 0,
     created_at   TEXT    NOT NULL,

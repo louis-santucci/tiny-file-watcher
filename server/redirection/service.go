@@ -22,7 +22,7 @@ func NewRedirectionService(fileWatcherRepository watcher.FileWatcherRepository, 
 	return &RedirectionService{fileWatcherRepository: fileWatcherRepository, fileRepository: fileRepository, redirectionRepository: redirectionRepository}
 }
 
-func (s *RedirectionService) AddRedirection(_ context.Context, req *pb.CreateFileRedirectionRequest) (*pb.FileRedirection, error) {
+func (s *RedirectionService) CreateFileRedirection(_ context.Context, req *pb.CreateFileRedirectionRequest) (*pb.FileRedirection, error) {
 	if req.WatcherName == "" || req.TargetPath == "" {
 		return nil, status.Error(codes.InvalidArgument, "watcher_name and file_path are required")
 	}
@@ -33,7 +33,7 @@ func (s *RedirectionService) AddRedirection(_ context.Context, req *pb.CreateFil
 	return toProto(redirection), nil
 }
 
-func (s *RedirectionService) GetRedirection(_ context.Context, req *pb.GetFileRedirectionRequest) (*pb.FileRedirection, error) {
+func (s *RedirectionService) GetFileRedirection(_ context.Context, req *pb.GetFileRedirectionRequest) (*pb.FileRedirection, error) {
 	redirection, err := s.redirectionRepository.GetRedirection(req.Name)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "redirection for watcher %s not found", req.Name)

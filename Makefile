@@ -1,5 +1,7 @@
-SERVER_BINARY := tfw
+SERVER_BINARY := tfws
+CLIENT_BINARY := tfw
 SERVER_PKG    := ./server
+CLIENT_PKG    := ./client
 PROTO_DIR     := grpc
 GEN_DIR       := gen/grpc
 PROTO_FILE    := $(PROTO_DIR)/filewatcher.proto
@@ -13,7 +15,7 @@ PROTOC_GEN_GO      := $(INSTALL_DIR)/protoc-gen-go
 PROTOC_GEN_GO_GRPC := $(INSTALL_DIR)/protoc-gen-go-grpc
 GOLANGCI_LINT      := $(INSTALL_DIR)/golangci-lint
 
-.PHONY: all install-tools generate build install test lint clean
+.PHONY: all install-tools generate build build-client build-all install test lint clean
 
 all: generate build
 
@@ -32,8 +34,15 @@ generate: $(PROTO_FILE) | $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_GRPC)
 		--go-grpc_out=$(GEN_DIR) --go-grpc_opt=paths=source_relative \
 		$(PROTO_FILE)
 
-## build: compile the server binary
-build: generate
+## build: compile the server binary (tfws)
+build: generate build-client build-server
+
+## build-client: compile the CLI client binary (tfw)
+build-client:
+	@go build -o $(CLIENT_BINARY) $(CLIENT_PKG)
+
+## build-all: compile both server and client binaries
+build-server: generate
 	@go build -o $(SERVER_BINARY) $(SERVER_PKG)
 
 ## install: build and copy binary to GOPATH/bin
@@ -48,9 +57,9 @@ test: generate
 lint: generate | $(GOLANGCI_LINT)
 	@golangci-lint run ./...
 
-## clean: remove built binary and generated proto files
+## clean: remove built binaries and generated proto files
 clean:
-	rm -f $(SERVER_BINARY)
+	rm -f $(SERVER_BINARY) $(CLIENT_BINARY)
 	rm -f $(GEN_DIR)/*.pb.go $(GEN_DIR)/*_grpc.pb.go
 
 $(PROTOC_GEN_GO):

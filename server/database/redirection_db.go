@@ -73,8 +73,21 @@ func (db *DB) UpdateRedirection(watcherName string, filePath *string, autoFlush 
 
 func scanFileRedirection(s scanner) (*FileRedirection, error) {
 	var fileRedirection FileRedirection
-	if err := s.Scan(&fileRedirection.WatcherName, &fileRedirection.TargetPath, &fileRedirection.AutoFlush, &fileRedirection.CreatedAt, &fileRedirection.UpdatedAt); err != nil {
+	var autoFlush int
+	var createdStr, updatedStr string
+	if err := s.Scan(&fileRedirection.WatcherName, &fileRedirection.TargetPath, &autoFlush, &createdStr, &updatedStr); err != nil {
 		return nil, fmt.Errorf("scan file redirection: %w", err)
 	}
+	fileRedirection.AutoFlush = autoFlush != 0
+	createdAt, err := time.Parse(time.RFC3339, createdStr)
+	if err != nil {
+		return nil, fmt.Errorf("parse created_at: %w", err)
+	}
+	fileRedirection.CreatedAt = createdAt
+	updatedAt, err := time.Parse(time.RFC3339, updatedStr)
+	if err != nil {
+		return nil, fmt.Errorf("parse updated_at: %w", err)
+	}
+	fileRedirection.UpdatedAt = updatedAt
 	return &fileRedirection, nil
 }

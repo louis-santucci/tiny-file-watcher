@@ -17,12 +17,11 @@ message Watcher {
 }
 
 message FileRedirection {
-  string watcher_name = 2;
-  string source_path = 3;
-  string target_path = 4;
-  bool auto_flush = 5;
-  google.protobuf.Timestamp created_at = 6;
-  google.protobuf.Timestamp updated_at = 7;
+  string watcher_name = 1;
+  string target_path = 2;
+  bool auto_flush = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
 }
 
 // WatchedFile represents a file detected by an active watcher.

@@ -10,6 +10,7 @@ import (
 	pb "tiny-file-watcher/gen/grpc"
 	config2 "tiny-file-watcher/server/config"
 	"tiny-file-watcher/server/database"
+	"tiny-file-watcher/server/flush"
 	"tiny-file-watcher/server/interceptor"
 	"tiny-file-watcher/server/redirection"
 	"tiny-file-watcher/server/watcher"
@@ -70,6 +71,7 @@ func NewApp() (*App, error) {
 	reflection.Register(grpcServer)
 	pb.RegisterFileWatcherServiceServer(grpcServer, watcher.NewManagerService(db, db, mgr))
 	pb.RegisterFileRedirectionServiceServer(grpcServer, redirection.NewRedirectionService(db, db, db))
+	pb.RegisterFileFlushServiceServer(grpcServer, flush.NewFlushService(db))
 
 	return &App{
 		config:     cfg,

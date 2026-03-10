@@ -111,7 +111,10 @@ service FileWatcherService {
   rpc UpdateWatcher(UpdateWatcherRequest)       returns (Watcher);
   rpc DeleteWatcher(DeleteWatcherRequest)       returns (DeleteWatcherResponse);
   rpc ToggleWatcher(ToggleWatcherRequest)       returns (Watcher);
-  rpc FlushWatcher(FlushWatcherRequest)         returns (FlushWatcherResponse);
+}
+
+service FileFlushService {
+  rpc FlushWatcher(FlushWatcherRequest) returns (FlushWatcherResponse);
 }
 
 service FileRedirectionService {

@@ -69,7 +69,7 @@ func NewApp() (*App, error) {
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(interceptor.UnaryLoggingInterceptor))
 	reflection.Register(grpcServer)
 	pb.RegisterFileWatcherServiceServer(grpcServer, watcher.NewManagerService(db, db, mgr))
-	pb.RegisterFileRedirectionServiceServer(grpcServer, redirection.NewRedirectionService(db, db))
+	pb.RegisterFileRedirectionServiceServer(grpcServer, redirection.NewRedirectionService(db, db, db))
 
 	return &App{
 		config:     cfg,

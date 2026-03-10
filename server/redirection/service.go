@@ -18,8 +18,8 @@ type RedirectionService struct {
 	redirectionRepository RedirectionRepository
 }
 
-func NewRedirectionService(fileWatcherRepository watcher.FileWatcherRepository, fileRepository watcher.FileRepository) *RedirectionService {
-	return &RedirectionService{fileWatcherRepository: fileWatcherRepository, fileRepository: fileRepository}
+func NewRedirectionService(fileWatcherRepository watcher.FileWatcherRepository, fileRepository watcher.FileRepository, redirectionRepository RedirectionRepository) *RedirectionService {
+	return &RedirectionService{fileWatcherRepository: fileWatcherRepository, fileRepository: fileRepository, redirectionRepository: redirectionRepository}
 }
 
 func (s *RedirectionService) AddRedirection(_ context.Context, req *pb.CreateFileRedirectionRequest) (*pb.FileRedirection, error) {
@@ -45,7 +45,7 @@ func (s *RedirectionService) UpdateFileRedirection(_ context.Context, req *pb.Up
 	if req.WatcherName == "" || req.TargetPath == nil {
 		return nil, status.Error(codes.InvalidArgument, "watcher_name and file_path are required")
 	}
-	redirection, err := s.redirectionRepository.UpdateRedirection(req.WatcherName, *req.TargetPath, *req.AutoFlush)
+	redirection, err := s.redirectionRepository.UpdateRedirection(req.WatcherName, req.TargetPath, req.AutoFlush)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "update redirection: %v", err)
 	}

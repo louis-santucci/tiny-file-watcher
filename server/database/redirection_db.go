@@ -39,17 +39,23 @@ func (db *DB) RemoveRedirection(watcherName string) error {
 	return nil
 }
 
-func (db *DB) UpdateRedirection(watcherName string, filePath string, autoFlush bool) (*FileRedirection, error) {
+func (db *DB) UpdateRedirection(watcherName string, filePath *string, autoFlush *bool) (*FileRedirection, error) {
+	if filePath == nil && autoFlush == nil {
+		return db.GetRedirection(watcherName)
+	}
+
 	now := time.Now().UTC()
 	setClauses := []string{}
 	args := []any{}
 
-	if filePath != "" {
+	if filePath != nil {
 		setClauses = append(setClauses, "target_path = ?")
 		args = append(args, filePath)
 	}
-	setClauses = append(setClauses, "auto_flush = ?")
-	args = append(args, autoFlush)
+	if autoFlush != nil {
+		setClauses = append(setClauses, "auto_flush = ?")
+		args = append(args, autoFlush)
+	}
 	setClauses = append(setClauses, "updated_at = ?")
 	args = append(args, now.Format(time.RFC3339))
 	args = append(args, watcherName)

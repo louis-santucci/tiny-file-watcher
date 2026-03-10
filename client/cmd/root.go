@@ -39,6 +39,7 @@ func Execute() {
 func init() {
 	rootCmd.AddCommand(watcherCmd)
 	rootCmd.AddCommand(redirectionCmd)
+	rootCmd.AddCommand(flushCmd)
 }
 
 func dial() error {

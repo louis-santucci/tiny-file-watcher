@@ -42,10 +42,10 @@ func (s *RedirectionService) GetRedirection(_ context.Context, req *pb.GetFileRe
 }
 
 func (s *RedirectionService) UpdateFileRedirection(_ context.Context, req *pb.UpdateFileRedirectionRequest) (*pb.FileRedirection, error) {
-	if req.WatcherName == "" || req.TargetPath == "" {
+	if req.WatcherName == "" || req.TargetPath == nil {
 		return nil, status.Error(codes.InvalidArgument, "watcher_name and file_path are required")
 	}
-	redirection, err := s.redirectionRepository.UpdateRedirection(req.WatcherName, req.TargetPath, req.AutoFlush)
+	redirection, err := s.redirectionRepository.UpdateRedirection(req.WatcherName, *req.TargetPath, *req.AutoFlush)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "update redirection: %v", err)
 	}

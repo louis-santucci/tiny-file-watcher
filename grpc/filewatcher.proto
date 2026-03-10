@@ -46,8 +46,8 @@ message CreateFileRedirectionRequest {
 
 message UpdateFileRedirectionRequest {
   string watcher_name = 1;
-  string target_path = 2;
-  bool auto_flush = 3;
+  optional string target_path = 2;
+  optional bool auto_flush = 3;
 }
 
 message DeleteFileRedirectionRequest {

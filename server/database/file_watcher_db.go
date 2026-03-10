@@ -67,8 +67,8 @@ func (db *DB) ListWatchers() ([]*FileWatcher, error) {
 }
 
 // UpdateWatcher updates name and source_path for the given ID.
-func (db *DB) UpdateWatcher(id int64, name string, sourcePath string) (*FileWatcher, error) {
-	if name == "" && sourcePath == "" {
+func (db *DB) UpdateWatcher(id int64, name *string, sourcePath *string) (*FileWatcher, error) {
+	if name == nil && sourcePath == nil {
 		return db.GetWatcherById(id)
 	}
 
@@ -76,11 +76,11 @@ func (db *DB) UpdateWatcher(id int64, name string, sourcePath string) (*FileWatc
 	setClauses := []string{}
 	args := []any{}
 
-	if name != "" {
+	if name != nil {
 		setClauses = append(setClauses, "name=?")
 		args = append(args, name)
 	}
-	if sourcePath != "" {
+	if sourcePath != nil {
 		setClauses = append(setClauses, "source_path=?")
 		args = append(args, sourcePath)
 	}

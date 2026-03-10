@@ -43,7 +43,7 @@ func (m *MockFileWatcherRepository) ListWatchers() ([]*database.FileWatcher, err
 	return nil, args.Error(1)
 }
 
-func (m *MockFileWatcherRepository) UpdateWatcher(id int64, name string, sourcePath string) (*database.FileWatcher, error) {
+func (m *MockFileWatcherRepository) UpdateWatcher(id int64, name *string, sourcePath *string) (*database.FileWatcher, error) {
 	args := m.Called(id, name, sourcePath)
 	if v := args.Get(0); v != nil {
 		return v.(*database.FileWatcher), args.Error(1)

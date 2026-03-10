@@ -203,9 +203,9 @@ func TestUpdateWatcher_OK(t *testing.T) {
 	w := newWatcher(1, "new-name", "/new/path", false)
 	name := "new-name"
 	sourcePath := "/new/path"
-	fileWatcherRepo.On("UpdateWatcher", int64(1), name, sourcePath).Return(w, nil)
+	fileWatcherRepo.On("UpdateWatcher", int64(1), &name, &sourcePath).Return(w, nil)
 
-	resp, err := svc.UpdateWatcher(ctx, &pb.UpdateWatcherRequest{Id: 1, Name: "new-name", SourcePath: "/new/path"})
+	resp, err := svc.UpdateWatcher(ctx, &pb.UpdateWatcherRequest{Id: 1, Name: &name, SourcePath: &sourcePath})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "new-name", resp.Name)
@@ -217,7 +217,10 @@ func TestUpdateWatcher_InvalidId(t *testing.T) {
 	fileRepo := &mocks.MockFileRepository{}
 	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockWatcherManager{})
 
-	_, err := svc.UpdateWatcher(ctx, &pb.UpdateWatcherRequest{Id: 0, Name: "n", SourcePath: "/p"})
+	name := "n"
+	sourcePath := "/p"
+
+	_, err := svc.UpdateWatcher(ctx, &pb.UpdateWatcherRequest{Id: 0, Name: &name, SourcePath: &sourcePath})
 
 	assertCode(t, err, codes.InvalidArgument)
 }
@@ -227,8 +230,11 @@ func TestUpdateWatcher_NotFound(t *testing.T) {
 	fileRepo := &mocks.MockFileRepository{}
 	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockWatcherManager{})
 
-	fileWatcherRepo.On("UpdateWatcher", int64(727), "n", "/new/path").Return(nil, errors.New("not found"))
-	_, err := svc.UpdateWatcher(ctx, &pb.UpdateWatcherRequest{Id: 727, Name: "n", SourcePath: "/new/path"})
+	name := "n"
+	sourcePath := "/new/path"
+
+	fileWatcherRepo.On("UpdateWatcher", int64(727), &name, &sourcePath).Return(nil, errors.New("not found"))
+	_, err := svc.UpdateWatcher(ctx, &pb.UpdateWatcherRequest{Id: 727, Name: &name, SourcePath: &sourcePath})
 
 	assert.Error(t, err)
 }
@@ -237,9 +243,12 @@ func TestUpdateWatcher_NullParameter(t *testing.T) {
 	fileRepo := &mocks.MockFileRepository{}
 	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockWatcherManager{})
 
+	var name *string = nil
+	newPath := "/new/path"
+
 	w := newWatcher(1, "old-name", "/new/path", false)
-	fileWatcherRepo.On("UpdateWatcher", int64(1), "", "/new/path").Return(w, nil)
-	_, err := svc.UpdateWatcher(ctx, &pb.UpdateWatcherRequest{Id: 1, SourcePath: "/new/path"})
+	fileWatcherRepo.On("UpdateWatcher", int64(1), name, &newPath).Return(w, nil)
+	_, err := svc.UpdateWatcher(ctx, &pb.UpdateWatcherRequest{Id: 1, SourcePath: &newPath})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "old-name", w.Name)
@@ -251,9 +260,12 @@ func TestUpdateWatcher_DBError(t *testing.T) {
 	fileRepo := &mocks.MockFileRepository{}
 	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockWatcherManager{})
 
-	fileWatcherRepo.On("UpdateWatcher", int64(1), "n", "/p").Return(nil, errors.New("db error"))
+	name := "n"
+	sourcePath := "/p"
 
-	_, err := svc.UpdateWatcher(ctx, &pb.UpdateWatcherRequest{Id: 1, Name: "n", SourcePath: "/p"})
+	fileWatcherRepo.On("UpdateWatcher", int64(1), &name, &sourcePath).Return(nil, errors.New("db error"))
+
+	_, err := svc.UpdateWatcher(ctx, &pb.UpdateWatcherRequest{Id: 1, Name: &name, SourcePath: &sourcePath})
 
 	assertCode(t, err, codes.Internal)
 	fileWatcherRepo.AssertExpectations(t)

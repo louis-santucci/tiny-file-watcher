@@ -66,6 +66,9 @@ func (s *WatcherService) UpdateWatcher(_ context.Context, req *pb.UpdateWatcherR
 	if req.Id < 1 {
 		return nil, status.Error(codes.InvalidArgument, "id is invalid (id must be a positive integer)")
 	}
+	if req.Name == nil && req.SourcePath == nil {
+		return nil, status.Error(codes.InvalidArgument, "at least one of name or source_path must be provided")
+	}
 	w, err := s.fileWatcherRepository.UpdateWatcher(req.Id, req.Name, req.SourcePath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "update watcher: %v", err)

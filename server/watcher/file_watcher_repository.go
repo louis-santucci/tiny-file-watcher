@@ -8,7 +8,7 @@ type FileWatcherRepository interface {
 	GetWatcherById(id int64) (*database.FileWatcher, error)
 	GetWatcherByName(name string) (*database.FileWatcher, error)
 	ListWatchers() ([]*database.FileWatcher, error)
-	UpdateWatcher(id int64, name string, sourcePath string) (*database.FileWatcher, error)
+	UpdateWatcher(id int64, name *string, sourcePath *string) (*database.FileWatcher, error)
 	DeleteWatcher(name string) error
 	ToggleWatcher(name string) (*database.FileWatcher, error)
 	ListEnabledWatchers() ([]*database.FileWatcher, error)

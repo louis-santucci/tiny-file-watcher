@@ -79,8 +79,8 @@ message ListWatchersResponse {
 
 message UpdateWatcherRequest {
   int64 id = 1;
-  string name = 2;
-  string source_path = 3;
+  optional string name = 2;
+  optional string source_path = 3;
 }
 
 message DeleteWatcherRequest {

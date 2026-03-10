@@ -42,7 +42,7 @@ install: build
 
 ## test: run all tests
 test: generate
-	@go test -race -v ./...
+	@go test -tags integration -race -v -timeout 30s ./...
 
 ## lint: run golangci-lint
 lint: generate | $(GOLANGCI_LINT)

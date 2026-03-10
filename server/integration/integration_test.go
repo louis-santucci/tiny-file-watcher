@@ -137,3 +137,46 @@ func TestIntegration_WatcherDeleteCascades(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, flushes)
 }
+
+// ── Nested file detection ─────────────────────────────────────────────────────
+
+func TestIntegration_NestedFileDetection(t *testing.T) {
+	db := newDB(t)
+	mgr := watcher.NewManager(db)
+	srcDir := t.TempDir()
+	tgtDir := t.TempDir()
+
+	w, err := db.CreateWatcher("nested-watcher", srcDir)
+	require.NoError(t, err)
+
+	_, err = db.AddRedirection("nested-watcher", tgtDir, false)
+	require.NoError(t, err)
+
+	key := watcher.WatcherKey{Id: w.ID, Name: w.Name}
+	require.NoError(t, mgr.Start(key, srcDir))
+	defer mgr.Stop(key)
+
+	// Create a subfolder then drop a file inside it.
+	// A short pause lets the manager process the directory Create event
+	// and register the new subdirectory with fsnotify before the file lands.
+	subDir := filepath.Join(srcDir, "subdir")
+	require.NoError(t, os.Mkdir(subDir, 0o755))
+	time.Sleep(100 * time.Millisecond)
+
+	expectedPath := filepath.Join(subDir, "nested.txt")
+	require.NoError(t, os.WriteFile(expectedPath, []byte("hello"), 0o644))
+
+	// Wait until the manager records the nested file.
+	require.Eventually(t, func() bool {
+		flushes, _ := db.ListPendingFlushes("nested-watcher")
+		return len(flushes) > 0
+	}, 2*time.Second, 50*time.Millisecond, "timed out waiting for nested file detection")
+
+	flushes, err := db.ListPendingFlushes("nested-watcher")
+	require.NoError(t, err)
+	require.Len(t, flushes, 1)
+	assert.Equal(t, "nested-watcher", flushes[0].WatcherName)
+	assert.Equal(t, "nested.txt", flushes[0].FileName)
+	assert.Equal(t, expectedPath, flushes[0].FilePath)
+	assert.Equal(t, tgtDir, flushes[0].TargetPath)
+}

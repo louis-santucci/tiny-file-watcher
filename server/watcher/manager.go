@@ -1,7 +1,10 @@
 package watcher
 
 import (
+	"io/fs"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -46,6 +49,11 @@ func (m *Manager) Start(key WatcherKey, sourcePath string) error {
 		fw.Close()
 		return err
 	}
+	// Also watch all existing subdirectories.
+	if err := addSubdirs(fw, sourcePath); err != nil {
+		fw.Close()
+		return err
+	}
 
 	m.watchers[key] = fw
 	go m.loop(key, fw)
@@ -74,7 +82,19 @@ func (m *Manager) IsRunning(key WatcherKey) bool {
 	return ok
 }
 
-// loop processes fsnotify events until the watcher is closed.
+// addSubdirs walks root and registers every subdirectory with fw.
+func addSubdirs(fw *fsnotify.Watcher, root string) error {
+	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil // skip unreadable entries
+		}
+		if d.IsDir() && path != root {
+			return fw.Add(path)
+		}
+		return nil
+	})
+}
+
 func (m *Manager) loop(key WatcherKey, fw *fsnotify.Watcher) {
 	for {
 		select {
@@ -84,19 +104,11 @@ func (m *Manager) loop(key WatcherKey, fw *fsnotify.Watcher) {
 			}
 			switch {
 			case event.Has(fsnotify.Create):
-				if _, err := m.fileRepository.AddWatchedFile(key.Name, event.Name, false); err != nil {
-					slog.Error("error adding file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
-				} else {
-					slog.Debug("file created", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name)
-				}
+				m.handleCreateEvent(key, event, fw)
+				break
 			case event.Has(fsnotify.Remove):
-				if err := m.fileRepository.RemoveWatchedFile(key.Name, event.Name); err != nil {
-					slog.Error("error removing file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
-
-				} else {
-					slog.Debug("file deleted", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name)
-				}
-				// Write and Rename events are intentionally ignored.
+				m.handleRemoveEvent(key, event, fw)
+				break
 			}
 		case err, ok := <-fw.Errors:
 			if !ok {
@@ -105,4 +117,32 @@ func (m *Manager) loop(key WatcherKey, fw *fsnotify.Watcher) {
 			slog.Error("watcher error", "watcher_name", key.Name, "watcher_id", key.Id, "err", err)
 		}
 	}
+}
+
+func (m *Manager) handleCreateEvent(key WatcherKey, event fsnotify.Event, fw *fsnotify.Watcher) {
+	info, err := os.Stat(event.Name)
+	if err != nil {
+		return
+	}
+	if info.IsDir() {
+		if addErr := fw.Add(event.Name); addErr != nil {
+			slog.Error("error watching new directory", "watcher_name", key.Name, "watcher_id", key.Id, "dir", event.Name, "err", addErr)
+		}
+		return
+	}
+	if _, err := m.fileRepository.AddWatchedFile(key.Name, event.Name, false); err != nil {
+		slog.Error("error adding file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
+	} else {
+		slog.Debug("file created", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name)
+	}
+}
+
+func (m *Manager) handleRemoveEvent(key WatcherKey, event fsnotify.Event, fw *fsnotify.Watcher) {
+	if err := m.fileRepository.RemoveWatchedFile(key.Name, event.Name); err != nil {
+		slog.Error("error removing file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
+
+	} else {
+		slog.Debug("file deleted", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name)
+	}
+	// Write and Rename events are intentionally ignored.
 }

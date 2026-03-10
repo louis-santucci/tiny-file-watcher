@@ -162,3 +162,50 @@ func TestManager_Loop_RemoveEvent_CallsRemoveWatchedFile(t *testing.T) {
 	}
 	repo.AssertCalled(t, "RemoveWatchedFile", key1.Name, existingFile)
 }
+
+// ── loop: Recursive Create event ─────────────────────────────────────────────
+
+func TestManager_Loop_CreateEvent_InSubfolder_CallsAddWatchedFile(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "subdir")
+	assert.NoError(t, os.Mkdir(sub, 0o755))
+
+	repo := &mocks.MockFileRepository{}
+	mgr := newManager(repo)
+
+	newFile := filepath.Join(sub, "nested.txt")
+	done := make(chan struct{})
+	repo.On("AddWatchedFile", key1.Name, newFile, false).
+		Return(&database.WatchedFile{}, nil).
+		Run(func(_ mock.Arguments) { close(done) })
+
+	assert.NoError(t, mgr.Start(key1, dir))
+	defer mgr.Stop(key1)
+
+	f, err := os.Create(newFile)
+	assert.NoError(t, err)
+	f.Close()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for AddWatchedFile to be called for nested file")
+	}
+	repo.AssertExpectations(t)
+}
+
+func TestManager_Loop_CreateEvent_Directory_DoesNotCallAddWatchedFile(t *testing.T) {
+	dir := t.TempDir()
+	repo := &mocks.MockFileRepository{}
+	mgr := newManager(repo)
+
+	assert.NoError(t, mgr.Start(key1, dir))
+	defer mgr.Stop(key1)
+
+	assert.NoError(t, os.Mkdir(filepath.Join(dir, "newdir"), 0o755))
+
+	// Give time for any (unwanted) event to be processed.
+	time.Sleep(200 * time.Millisecond)
+
+	repo.AssertNotCalled(t, "AddWatchedFile", mock.Anything, mock.Anything, mock.Anything)
+}

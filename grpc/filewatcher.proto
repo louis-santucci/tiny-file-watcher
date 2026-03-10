@@ -17,7 +17,6 @@ message Watcher {
 }
 
 message FileRedirection {
-  int64 id = 1;
   string watcher_name = 2;
   string source_path = 3;
   string target_path = 4;

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"tiny-file-watcher/server/database"
+	"tiny-file-watcher/server/test/testutil"
 	"tiny-file-watcher/server/watcher"
 
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,7 @@ func newDB(t *testing.T) *database.DB {
 
 func TestIntegration_WatcherLifecycle(t *testing.T) {
 	db := newDB(t)
-	mgr := watcher.NewManager(db)
+	mgr := watcher.NewManager(db, testutil.TestLogger())
 	srcDir := t.TempDir()
 
 	w, err := db.CreateWatcher("lifecycle-watcher", srcDir)
@@ -64,7 +65,7 @@ func TestIntegration_WatcherLifecycle(t *testing.T) {
 
 func TestIntegration_FileDetection(t *testing.T) {
 	db := newDB(t)
-	mgr := watcher.NewManager(db)
+	mgr := watcher.NewManager(db, testutil.TestLogger())
 	srcDir := t.TempDir()
 	tgtDir := t.TempDir()
 
@@ -100,7 +101,7 @@ func TestIntegration_FileDetection(t *testing.T) {
 
 func TestIntegration_WatcherDeleteCascades(t *testing.T) {
 	db := newDB(t)
-	mgr := watcher.NewManager(db)
+	mgr := watcher.NewManager(db, testutil.TestLogger())
 	srcDir := t.TempDir()
 	tgtDir := t.TempDir()
 
@@ -142,7 +143,7 @@ func TestIntegration_WatcherDeleteCascades(t *testing.T) {
 
 func TestIntegration_NestedFileDetection(t *testing.T) {
 	db := newDB(t)
-	mgr := watcher.NewManager(db)
+	mgr := watcher.NewManager(db, testutil.TestLogger())
 	srcDir := t.TempDir()
 	tgtDir := t.TempDir()
 
@@ -181,7 +182,7 @@ func TestIntegration_NestedFileDetection(t *testing.T) {
 	assert.Equal(t, tgtDir, flushes[0].TargetPath)
 
 	// Remove the file and verify the manager removes the pending flush.
-	require.NoError(t, os.Remove(subDir))
+	require.NoError(t, os.Remove(expectedPath))
 
 	require.Eventually(t, func() bool {
 		flushes, _ := db.ListPendingFlushes("nested-watcher")

@@ -70,6 +70,7 @@ func (s *FlushService) ListPendingFiles(_ context.Context, req *pb.ListPendingFi
 			Id:        pf.WatchedFileID,
 			WatcherId: pf.WatcherName,
 			FilePath:  pf.FilePath,
+			FileName:  pf.FileName,
 			Flushed:   false,
 		})
 	}

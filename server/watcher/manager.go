@@ -108,7 +108,7 @@ func (m *Manager) loop(key WatcherKey, fw *fsnotify.Watcher) {
 			case event.Has(fsnotify.Create):
 				m.handleCreateEvent(key, event, fw)
 				break
-			case event.Has(fsnotify.Remove):
+			case event.Has(fsnotify.Remove), event.Has(fsnotify.Rename):
 				m.handleRemoveEvent(key, event, fw)
 				break
 			}

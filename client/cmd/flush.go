@@ -74,10 +74,17 @@ var runFlushCmd = &cobra.Command{
 
 func printWatchedFiles(files []*pb.WatchedFile) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tWATCHER\tFILE PATH")
-	fmt.Fprintln(w, "--\t-------\t---------")
+	fmt.Fprintln(w, "ID\tWATCHER\tFILE NAME\tFILE PATH")
+	fmt.Fprintln(w, "--\t-------\t---------\t---------")
 	for _, f := range files {
-		fmt.Fprintf(w, "%d\t%s\t%s\n", f.Id, f.WatcherId, f.FilePath)
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", f.Id, f.WatcherId, f.FileName, shortenPath(f.FilePath, 40))
 	}
 	w.Flush()
+}
+
+func shortenPath(path string, maxLen int) string {
+	if len(path) <= maxLen {
+		return path
+	}
+	return "..." + path[len(path)-maxLen+3:]
 }

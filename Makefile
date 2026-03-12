@@ -15,7 +15,13 @@ PROTOC_GEN_GO      := $(INSTALL_DIR)/protoc-gen-go
 PROTOC_GEN_GO_GRPC := $(INSTALL_DIR)/protoc-gen-go-grpc
 GOLANGCI_LINT      := $(INSTALL_DIR)/golangci-lint
 
-.PHONY: all install-tools generate build build-client build-all install test lint clean
+LAUNCH_AGENTS_DIR := $(HOME)/Library/LaunchAgents
+PLIST_LABEL       := louissantucci.tfws
+PLIST_TEMPLATE    := launchd/$(PLIST_LABEL).plist
+PLIST_DEST        := $(LAUNCH_AGENTS_DIR)/$(PLIST_LABEL).plist
+
+.PHONY: all install-tools generate build build-client build-all install test lint clean \
+        install-service uninstall-service enable-service disable-service
 
 all: generate build
 
@@ -48,6 +54,7 @@ build-server: generate
 ## install: build and copy binary to GOPATH/bin
 install: build
 	@install -m 0755 $(SERVER_BINARY) $(INSTALL_DIR)/$(SERVER_BINARY)
+	@install -m 0755 $(CLIENT_BINARY) $(INSTALL_DIR)/$(CLIENT_BINARY)
 
 ## test: run all tests
 test: generate
@@ -70,3 +77,28 @@ $(PROTOC_GEN_GO_GRPC):
 
 $(GOLANGCI_LINT):
 	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+## install-service: install tfws binary and register it as a macOS LaunchAgent (starts at login)
+install-service: install
+	@mkdir -p $(LAUNCH_AGENTS_DIR)
+	@sed -e 's|@@BINARY_PATH@@|$(INSTALL_DIR)/$(SERVER_BINARY)|g' \
+	     -e 's|@@HOME@@|$(HOME)|g' \
+	     $(PLIST_TEMPLATE) > $(PLIST_DEST)
+	@launchctl load -w $(PLIST_DEST)
+	@echo "tfws LaunchAgent installed and started."
+
+## uninstall-service: stop and remove the tfws LaunchAgent
+uninstall-service:
+	@launchctl unload -w $(PLIST_DEST) 2>/dev/null || true
+	@rm -f $(PLIST_DEST)
+	@echo "tfws LaunchAgent removed."
+
+## enable-service: enable (load) the tfws LaunchAgent
+enable-service:
+	@launchctl load -w $(PLIST_DEST)
+	@echo "tfws LaunchAgent enabled."
+
+## disable-service: disable (unload) the tfws LaunchAgent
+disable-service:
+	@launchctl unload -w $(PLIST_DEST)
+	@echo "tfws LaunchAgent disabled."

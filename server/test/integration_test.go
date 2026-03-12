@@ -1,6 +1,6 @@
 //go:build integration
 
-package integration_test
+package test
 
 import (
 	"os"
@@ -179,4 +179,12 @@ func TestIntegration_NestedFileDetection(t *testing.T) {
 	assert.Equal(t, "nested.txt", flushes[0].FileName)
 	assert.Equal(t, expectedPath, flushes[0].FilePath)
 	assert.Equal(t, tgtDir, flushes[0].TargetPath)
+
+	// Remove the file and verify the manager removes the pending flush.
+	require.NoError(t, os.Remove(subDir))
+
+	require.Eventually(t, func() bool {
+		flushes, _ := db.ListPendingFlushes("nested-watcher")
+		return len(flushes) == 0
+	}, 2*time.Second, 50*time.Millisecond, "timed out waiting for pending flush removal")
 }

@@ -81,6 +81,12 @@ func copyFile(src, dst string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("create target directory: %w", err)
 	}
+
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return fmt.Errorf("stat source: %w", err)
+	}
+
 	in, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("open source: %w", err)
@@ -96,7 +102,22 @@ func copyFile(src, dst string) error {
 	if _, err := io.Copy(out, in); err != nil {
 		return fmt.Errorf("copy data: %w", err)
 	}
-	return out.Sync()
+
+	if err := out.Sync(); err != nil {
+		return fmt.Errorf("sync destination: %w", err)
+	}
+
+	// Preserve file permissions
+	if err := os.Chmod(dst, srcInfo.Mode()); err != nil {
+		return fmt.Errorf("chmod destination: %w", err)
+	}
+
+	// Preserve access and modification times
+	if err := os.Chtimes(dst, srcInfo.ModTime(), srcInfo.ModTime()); err != nil {
+		return fmt.Errorf("chtimes destination: %w", err)
+	}
+
+	return nil
 }
 
 // ensure FlushService satisfies the generated interface at compile time.

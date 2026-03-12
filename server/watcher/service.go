@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"context"
+	"log/slog"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -17,10 +18,11 @@ type WatcherService struct {
 	fileWatcherRepository FileWatcherRepository
 	fileRepository        FileRepository
 	manager               WatcherManager
+	logger                *slog.Logger
 }
 
-func NewManagerService(fileWatcherRepository FileWatcherRepository, fileRepository FileRepository, mgr WatcherManager) *WatcherService {
-	return &WatcherService{fileWatcherRepository: fileWatcherRepository, manager: mgr, fileRepository: fileRepository}
+func NewManagerService(fileWatcherRepository FileWatcherRepository, fileRepository FileRepository, mgr WatcherManager, logger *slog.Logger) *WatcherService {
+	return &WatcherService{fileWatcherRepository: fileWatcherRepository, manager: mgr, fileRepository: fileRepository, logger: logger}
 }
 
 func (s *WatcherService) CreateWatcher(_ context.Context, req *pb.CreateWatcherRequest) (*pb.Watcher, error) {

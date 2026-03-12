@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 	"tiny-file-watcher/server/test/mocks"
+	"tiny-file-watcher/server/test/testutil"
 
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/watcher"
@@ -17,7 +18,7 @@ import (
 var key1 = watcher.WatcherKey{Id: 1, Name: "test-watcher"}
 
 func newManager(repo *mocks.MockFileRepository) *watcher.Manager {
-	return watcher.NewManager(repo)
+	return watcher.NewManager(repo, testutil.TestLogger())
 }
 
 // ── Start ─────────────────────────────────────────────────────────────────────

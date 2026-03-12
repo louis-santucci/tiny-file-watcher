@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -36,6 +37,7 @@ type App struct {
 func NewApp() (*App, error) {
 	cfg := config2.InitConfig()
 	config2.InitLogging()
+	logger := slog.Default()
 
 	if err := cfg.Load(); err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
@@ -51,7 +53,7 @@ func NewApp() (*App, error) {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	mgr := watcher.NewManager(db)
+	mgr := watcher.NewManager(db, logger)
 
 	// Resume any watchers that were enabled before the last shutdown.
 	enabled, err := db.ListEnabledWatchers()
@@ -69,9 +71,9 @@ func NewApp() (*App, error) {
 
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(interceptor.UnaryLoggingInterceptor))
 	reflection.Register(grpcServer)
-	pb.RegisterFileWatcherServiceServer(grpcServer, watcher.NewManagerService(db, db, mgr))
-	pb.RegisterFileRedirectionServiceServer(grpcServer, redirection.NewRedirectionService(db, db, db))
-	pb.RegisterFileFlushServiceServer(grpcServer, flush.NewFlushService(db))
+	pb.RegisterFileWatcherServiceServer(grpcServer, watcher.NewManagerService(db, db, mgr, logger))
+	pb.RegisterFileRedirectionServiceServer(grpcServer, redirection.NewRedirectionService(db, db, db, logger))
+	pb.RegisterFileFlushServiceServer(grpcServer, flush.NewFlushService(db, logger))
 
 	return &App{
 		config:     cfg,

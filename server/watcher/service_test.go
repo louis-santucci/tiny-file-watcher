@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 	"tiny-file-watcher/server/test/mocks"
+	"tiny-file-watcher/server/test/testutil"
 
 	pb "tiny-file-watcher/gen/grpc"
 	"tiny-file-watcher/server/database"
@@ -34,7 +35,7 @@ func newWatcher(id int64, name, path string, enabled bool) *database.FileWatcher
 }
 
 func newService(fileWatcherRepository *mocks.MockFileWatcherRepository, fileRepository *mocks.MockFileRepository, mgr *mocks.MockWatcherManager) *watcher.WatcherService {
-	return watcher.NewManagerService(fileWatcherRepository, fileRepository, mgr)
+	return watcher.NewManagerService(fileWatcherRepository, fileRepository, mgr, testutil.TestLogger())
 }
 
 // ── CreateWatcher ─────────────────────────────────────────────────────────────

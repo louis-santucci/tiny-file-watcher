@@ -2,6 +2,7 @@ package redirection
 
 import (
 	"context"
+	"log/slog"
 	pb "tiny-file-watcher/gen/grpc"
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/watcher"
@@ -16,10 +17,11 @@ type RedirectionService struct {
 	fileWatcherRepository watcher.FileWatcherRepository
 	fileRepository        watcher.FileRepository
 	redirectionRepository RedirectionRepository
+	logger                *slog.Logger
 }
 
-func NewRedirectionService(fileWatcherRepository watcher.FileWatcherRepository, fileRepository watcher.FileRepository, redirectionRepository RedirectionRepository) *RedirectionService {
-	return &RedirectionService{fileWatcherRepository: fileWatcherRepository, fileRepository: fileRepository, redirectionRepository: redirectionRepository}
+func NewRedirectionService(fileWatcherRepository watcher.FileWatcherRepository, fileRepository watcher.FileRepository, redirectionRepository RedirectionRepository, logger *slog.Logger) *RedirectionService {
+	return &RedirectionService{fileWatcherRepository: fileWatcherRepository, fileRepository: fileRepository, redirectionRepository: redirectionRepository, logger: logger}
 }
 
 func (s *RedirectionService) CreateFileRedirection(_ context.Context, req *pb.CreateFileRedirectionRequest) (*pb.FileRedirection, error) {

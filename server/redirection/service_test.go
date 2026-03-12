@@ -10,6 +10,7 @@ import (
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/redirection"
 	"tiny-file-watcher/server/test/mocks"
+	"tiny-file-watcher/server/test/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
@@ -36,6 +37,7 @@ func newService(repo *mocks.MockRedirectionRepository) *redirection.RedirectionS
 		&mocks.MockFileWatcherRepository{},
 		&mocks.MockFileRepository{},
 		repo,
+		testutil.TestLogger(),
 	)
 }
 

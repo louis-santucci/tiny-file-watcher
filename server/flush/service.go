@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -17,10 +18,11 @@ import (
 type FlushService struct {
 	pb.UnimplementedFileFlushServiceServer
 	flushRepository FlushRepository
+	logger          *slog.Logger
 }
 
-func NewFlushService(flushRepository FlushRepository) *FlushService {
-	return &FlushService{flushRepository: flushRepository}
+func NewFlushService(flushRepository FlushRepository, logger *slog.Logger) *FlushService {
+	return &FlushService{flushRepository: flushRepository, logger: logger}
 }
 
 func (s *FlushService) FlushWatcher(_ context.Context, req *pb.FlushWatcherRequest) (*pb.FlushWatcherResponse, error) {

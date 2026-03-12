@@ -15,6 +15,7 @@ type Manager struct {
 	mu             sync.Mutex
 	watchers       map[WatcherKey]*fsnotify.Watcher // watcher ID → fsnotify handle
 	fileRepository FileRepository
+	logger         *slog.Logger
 }
 
 type WatcherKey struct {
@@ -23,10 +24,11 @@ type WatcherKey struct {
 }
 
 // NewManager creates a new Manager backed by the given FileRepository.
-func NewManager(fileRepository FileRepository) *Manager {
+func NewManager(fileRepository FileRepository, logger *slog.Logger) *Manager {
 	return &Manager{
 		watchers:       make(map[WatcherKey]*fsnotify.Watcher),
 		fileRepository: fileRepository,
+		logger:         logger,
 	}
 }
 
@@ -37,7 +39,7 @@ func (m *Manager) Start(key WatcherKey, sourcePath string) error {
 	defer m.mu.Unlock()
 
 	if _, running := m.watchers[key]; running {
-		slog.Warn("watcher already running", "watcher_name", key.Name, "watcher_id", key.Id)
+		m.logger.Warn("watcher already running", "watcher_name", key.Name, "watcher_id", key.Id)
 		return nil
 	}
 
@@ -57,7 +59,7 @@ func (m *Manager) Start(key WatcherKey, sourcePath string) error {
 
 	m.watchers[key] = fw
 	go m.loop(key, fw)
-	slog.Info("watcher started", "watcher_name", key.Name, "watcher_id", key.Id, "path", sourcePath)
+	m.logger.Info("watcher started", "watcher_name", key.Name, "watcher_id", key.Id, "path", sourcePath)
 	return nil
 }
 
@@ -70,7 +72,7 @@ func (m *Manager) Stop(key WatcherKey) {
 	if fw, ok := m.watchers[key]; ok {
 		fw.Close()
 		delete(m.watchers, key)
-		slog.Info("watcher stopped", "watcher_name", key.Name, "watcher_id", key.Id, "watcher_name", key.Name)
+		m.logger.Info("watcher stopped", "watcher_name", key.Name, "watcher_id", key.Id, "watcher_name", key.Name)
 	}
 }
 
@@ -114,7 +116,7 @@ func (m *Manager) loop(key WatcherKey, fw *fsnotify.Watcher) {
 			if !ok {
 				return
 			}
-			slog.Error("watcher error", "watcher_name", key.Name, "watcher_id", key.Id, "err", err)
+			m.logger.Error("watcher error", "watcher_name", key.Name, "watcher_id", key.Id, "err", err)
 		}
 	}
 }
@@ -126,23 +128,23 @@ func (m *Manager) handleCreateEvent(key WatcherKey, event fsnotify.Event, fw *fs
 	}
 	if info.IsDir() {
 		if addErr := fw.Add(event.Name); addErr != nil {
-			slog.Error("error watching new directory", "watcher_name", key.Name, "watcher_id", key.Id, "dir", event.Name, "err", addErr)
+			m.logger.Error("error watching new directory", "watcher_name", key.Name, "watcher_id", key.Id, "dir", event.Name, "err", addErr)
 		}
 		return
 	}
 	if _, err := m.fileRepository.AddWatchedFile(key.Name, event.Name, false); err != nil {
-		slog.Error("error adding file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
+		m.logger.Error("error adding file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
 	} else {
-		slog.Debug("file created", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name)
+		m.logger.Debug("file created", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name)
 	}
 }
 
 func (m *Manager) handleRemoveEvent(key WatcherKey, event fsnotify.Event, fw *fsnotify.Watcher) {
 	if err := m.fileRepository.RemoveWatchedFile(key.Name, event.Name); err != nil {
-		slog.Error("error removing file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
+		m.logger.Error("error removing file", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name, "err", err)
 
 	} else {
-		slog.Debug("file deleted", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name)
+		m.logger.Debug("file deleted", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name)
 	}
 	// Write and Rename events are intentionally ignored.
 }

@@ -11,6 +11,7 @@ import (
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/flush"
 	"tiny-file-watcher/server/test/mocks"
+	"tiny-file-watcher/server/test/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -21,7 +22,7 @@ import (
 var ctx = context.Background()
 
 func newService(repo *mocks.MockFlushRepository) *flush.FlushService {
-	return flush.NewFlushService(repo)
+	return flush.NewFlushService(repo, testutil.TestLogger())
 }
 
 func assertCode(t *testing.T, err error, want codes.Code) {

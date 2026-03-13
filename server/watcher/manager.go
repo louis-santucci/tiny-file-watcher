@@ -12,10 +12,11 @@ import (
 
 // Manager manages one fsnotify goroutine per enabled FileWatcher.
 type Manager struct {
-	mu             sync.Mutex
-	watchers       map[WatcherKey]*fsnotify.Watcher // watcher ID → fsnotify handle
-	fileRepository FileRepository
-	logger         *slog.Logger
+	mu               sync.Mutex
+	watchers         map[WatcherKey]*fsnotify.Watcher // watcher ID → fsnotify handle
+	fileRepository   FileRepository
+	filterRepository FilterRepository
+	logger           *slog.Logger
 }
 
 type WatcherKey struct {
@@ -23,12 +24,13 @@ type WatcherKey struct {
 	Name string
 }
 
-// NewManager creates a new Manager backed by the given FileRepository.
-func NewManager(fileRepository FileRepository, logger *slog.Logger) *Manager {
+// NewManager creates a new Manager backed by the given FileRepository and FilterRepository.
+func NewManager(fileRepository FileRepository, filterRepository FilterRepository, logger *slog.Logger) *Manager {
 	return &Manager{
-		watchers:       make(map[WatcherKey]*fsnotify.Watcher),
-		fileRepository: fileRepository,
-		logger:         logger,
+		watchers:         make(map[WatcherKey]*fsnotify.Watcher),
+		fileRepository:   fileRepository,
+		filterRepository: filterRepository,
+		logger:           logger,
 	}
 }
 
@@ -130,6 +132,15 @@ func (m *Manager) handleCreateEvent(key WatcherKey, event fsnotify.Event, fw *fs
 		if addErr := fw.Add(event.Name); addErr != nil {
 			m.logger.Error("error watching new directory", "watcher_name", key.Name, "watcher_id", key.Id, "dir", event.Name, "err", addErr)
 		}
+		return
+	}
+	filters, err := m.filterRepository.GetFiltersForWatcher(key.Name)
+	if err != nil {
+		m.logger.Error("error loading filters", "watcher_name", key.Name, "watcher_id", key.Id, "err", err)
+		return
+	}
+	if !Evaluate(filters, event.Name) {
+		m.logger.Debug("file rejected by filter", "watcher_name", key.Name, "watcher_id", key.Id, "event", event.Name)
 		return
 	}
 	if _, err := m.fileRepository.AddWatchedFile(key.Name, event.Name, false); err != nil {

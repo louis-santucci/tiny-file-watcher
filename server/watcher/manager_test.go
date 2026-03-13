@@ -18,7 +18,9 @@ import (
 var key1 = watcher.WatcherKey{Id: 1, Name: "test-watcher"}
 
 func newManager(repo *mocks.MockFileRepository) *watcher.Manager {
-	return watcher.NewManager(repo, testutil.TestLogger())
+	filterRepo := &mocks.MockFilterRepository{}
+	filterRepo.On("GetFiltersForWatcher", mock.Anything).Return([]*database.WatcherFilter{}, nil).Maybe()
+	return watcher.NewManager(repo, filterRepo, testutil.TestLogger())
 }
 
 // ── Start ─────────────────────────────────────────────────────────────────────

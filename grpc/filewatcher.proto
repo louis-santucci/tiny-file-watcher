@@ -107,6 +107,37 @@ message FlushWatcherResponse {
   bool success = 1;
 }
 
+message WatcherFilter {
+  int64  id           = 1;
+  string watcher_name = 2;
+  string rule_type    = 3; // "include" or "exclude"
+  string pattern_type = 4; // "extension", "name", or "glob"
+  string pattern      = 5;
+}
+
+message AddFilterRequest {
+  string watcher_name = 1;
+  string rule_type    = 2;
+  string pattern_type = 3;
+  string pattern      = 4;
+}
+
+message ListFiltersRequest {
+  string watcher_name = 1;
+}
+
+message ListFiltersResponse {
+  repeated WatcherFilter filters = 1;
+}
+
+message DeleteFilterRequest {
+  int64 id = 1;
+}
+
+message DeleteFilterResponse {
+  bool success = 1;
+}
+
 message ToggleWatcherRequest {
   string name = 1;
 }
@@ -131,4 +162,10 @@ service FileRedirectionService {
   rpc CreateFileRedirection(CreateFileRedirectionRequest) returns (FileRedirection);
   rpc UpdateFileRedirection(UpdateFileRedirectionRequest) returns (FileRedirection);
   rpc DeleteFileRedirection(DeleteFileRedirectionRequest) returns (DeleteFileRedirectionResponse);
+}
+
+service WatcherFilterService {
+  rpc AddFilter(AddFilterRequest)       returns (WatcherFilter);
+  rpc ListFilters(ListFiltersRequest)   returns (ListFiltersResponse);
+  rpc DeleteFilter(DeleteFilterRequest) returns (DeleteFilterResponse);
 }

@@ -40,6 +40,7 @@ func init() {
 	rootCmd.AddCommand(watcherCmd)
 	rootCmd.AddCommand(redirectionCmd)
 	rootCmd.AddCommand(flushCmd)
+	rootCmd.AddCommand(filterCmd)
 }
 
 func dial() error {

@@ -11,6 +11,7 @@ import (
 	pb "tiny-file-watcher/gen/grpc"
 	config2 "tiny-file-watcher/server/config"
 	"tiny-file-watcher/server/database"
+	"tiny-file-watcher/server/filter"
 	"tiny-file-watcher/server/flush"
 	"tiny-file-watcher/server/interceptor"
 	"tiny-file-watcher/server/redirection"
@@ -53,7 +54,7 @@ func NewApp() (*App, error) {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	mgr := watcher.NewManager(db, logger)
+	mgr := watcher.NewManager(db, db, logger)
 
 	// Resume any watchers that were enabled before the last shutdown.
 	enabled, err := db.ListEnabledWatchers()
@@ -74,6 +75,7 @@ func NewApp() (*App, error) {
 	pb.RegisterFileWatcherServiceServer(grpcServer, watcher.NewManagerService(db, db, mgr, logger))
 	pb.RegisterFileRedirectionServiceServer(grpcServer, redirection.NewRedirectionService(db, db, db, logger))
 	pb.RegisterFileFlushServiceServer(grpcServer, flush.NewFlushService(db, logger))
+	pb.RegisterWatcherFilterServiceServer(grpcServer, filter.NewFilterService(db, logger))
 
 	return &App{
 		config:     cfg,

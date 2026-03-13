@@ -35,7 +35,7 @@ func newDB(t *testing.T) *database.DB {
 
 func TestIntegration_WatcherLifecycle(t *testing.T) {
 	db := newDB(t)
-	mgr := watcher.NewManager(db, testutil.TestLogger())
+	mgr := watcher.NewManager(db, db, testutil.TestLogger())
 	srcDir := t.TempDir()
 
 	w, err := db.CreateWatcher("lifecycle-watcher", srcDir)
@@ -65,7 +65,7 @@ func TestIntegration_WatcherLifecycle(t *testing.T) {
 
 func TestIntegration_FileDetection(t *testing.T) {
 	db := newDB(t)
-	mgr := watcher.NewManager(db, testutil.TestLogger())
+	mgr := watcher.NewManager(db, db, testutil.TestLogger())
 	srcDir := t.TempDir()
 	tgtDir := t.TempDir()
 
@@ -101,7 +101,7 @@ func TestIntegration_FileDetection(t *testing.T) {
 
 func TestIntegration_WatcherDeleteCascades(t *testing.T) {
 	db := newDB(t)
-	mgr := watcher.NewManager(db, testutil.TestLogger())
+	mgr := watcher.NewManager(db, db, testutil.TestLogger())
 	srcDir := t.TempDir()
 	tgtDir := t.TempDir()
 
@@ -143,7 +143,7 @@ func TestIntegration_WatcherDeleteCascades(t *testing.T) {
 
 func TestIntegration_NestedFileDetection(t *testing.T) {
 	db := newDB(t)
-	mgr := watcher.NewManager(db, testutil.TestLogger())
+	mgr := watcher.NewManager(db, db, testutil.TestLogger())
 	srcDir := t.TempDir()
 	tgtDir := t.TempDir()
 

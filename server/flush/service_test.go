@@ -78,7 +78,7 @@ func TestFlushWatcher_OK(t *testing.T) {
 	assert.NoError(t, os.WriteFile(srcFile, []byte("hello"), 0o644))
 
 	pendings := []*database.PendingFlush{
-		{WatchedFileID: 1, WatcherName: "my-watcher", FilePath: srcFile, FileName: "hello.txt", TargetPath: dstDir},
+		{WatchedFileID: 1, WatcherName: "my-watcher", FilePath: srcDir, FileName: "hello.txt", TargetPath: dstDir},
 	}
 	repo.On("ListPendingFlushes", "my-watcher").Return(pendings, nil)
 	repo.On("FlushWatchedFiles", []int64{1}).Return(nil)
@@ -104,7 +104,7 @@ func TestFlushWatcher_FlushWatchedFiles_Error(t *testing.T) {
 	assert.NoError(t, os.WriteFile(srcFile, []byte("data"), 0o644))
 
 	pendings := []*database.PendingFlush{
-		{WatchedFileID: 2, WatcherName: "my-watcher", FilePath: srcFile, FileName: "file.txt", TargetPath: dstDir},
+		{WatchedFileID: 2, WatcherName: "my-watcher", FilePath: srcDir, FileName: "file.txt", TargetPath: dstDir},
 	}
 	repo.On("ListPendingFlushes", "my-watcher").Return(pendings, nil)
 	repo.On("FlushWatchedFiles", []int64{2}).Return(errors.New("db error"))
@@ -121,7 +121,7 @@ func TestFlushWatcher_CopyFile_SourceMissing(t *testing.T) {
 
 	dstDir := t.TempDir()
 	pendings := []*database.PendingFlush{
-		{WatchedFileID: 3, WatcherName: "my-watcher", FilePath: "/nonexistent/file.txt", FileName: "file.txt", TargetPath: dstDir},
+		{WatchedFileID: 3, WatcherName: "my-watcher", FilePath: "/nonexistent", FileName: "file.txt", TargetPath: dstDir},
 	}
 	repo.On("ListPendingFlushes", "my-watcher").Return(pendings, nil)
 

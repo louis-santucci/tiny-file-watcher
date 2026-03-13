@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -26,13 +27,14 @@ type PendingFlush struct {
 }
 
 // AddWatchedFile inserts a newly detected file.
+// filePath is the full path to the file; file_path in the DB stores only the parent directory.
 func (db *DB) AddWatchedFile(watcherName string, filePath string, flushed bool) (*WatchedFile, error) {
 	now := time.Now().UTC()
-	// extract the file name from the path for easier querying later.
-	fileName := extractFileName(filePath)
+	fileName := filepath.Base(filePath)
+	parentDir := filepath.Dir(filePath)
 	createdFile, err := db.conn.Exec(
 		`INSERT INTO watched_files (watcher_name, file_path, file_name, flushed, detected_at) VALUES (?,?,?,?,?)`,
-		watcherName, filePath, fileName, flushed, now.Format(time.RFC3339),
+		watcherName, parentDir, fileName, flushed, now.Format(time.RFC3339),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("add watched file: %w", err)
@@ -41,12 +43,17 @@ func (db *DB) AddWatchedFile(watcherName string, filePath string, flushed bool) 
 	if err != nil {
 		return nil, fmt.Errorf("get created id: %w", err)
 	}
-	return &WatchedFile{ID: id, WatcherName: watcherName, FilePath: filePath, DetectedAt: now, Flushed: flushed}, nil
+	return &WatchedFile{ID: id, WatcherName: watcherName, FilePath: parentDir, DetectedAt: now, Flushed: flushed}, nil
 }
 
-// RemoveWatchedFile deletes the entry for a given watcher and file path.
+// RemoveWatchedFile deletes the entry for a given watcher and full file path.
 func (db *DB) RemoveWatchedFile(watcherName string, filePath string) error {
-	_, err := db.conn.Exec(`DELETE FROM watched_files WHERE watcher_name=? AND file_path=?`, watcherName, filePath)
+	fileName := filepath.Base(filePath)
+	parentDir := filepath.Dir(filePath)
+	_, err := db.conn.Exec(
+		`DELETE FROM watched_files WHERE watcher_name=? AND file_path=? AND file_name=?`,
+		watcherName, parentDir, fileName,
+	)
 	return err
 }
 
@@ -89,13 +96,4 @@ func (db *DB) ListPendingFlushes(name string) ([]*PendingFlush, error) {
 		result = append(result, &pf)
 	}
 	return result, rows.Err()
-}
-
-func extractFileName(path string) string {
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' || path[i] == '\\' {
-			return path[i+1:]
-		}
-	}
-	return path
 }

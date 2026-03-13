@@ -41,7 +41,7 @@ func (s *FlushService) FlushWatcher(_ context.Context, req *pb.FlushWatcherReque
 
 	ids := make([]int64, 0, len(pendings))
 	for _, pf := range pendings {
-		if err := copyFile(pf.FilePath, filepath.Join(pf.TargetPath, pf.FileName)); err != nil {
+		if err := copyFile(filepath.Join(pf.FilePath, pf.FileName), filepath.Join(pf.TargetPath, pf.FileName)); err != nil {
 			return nil, status.Errorf(codes.Internal, "copy file %s: %v", pf.FilePath, err)
 		}
 		ids = append(ids, pf.WatchedFileID)

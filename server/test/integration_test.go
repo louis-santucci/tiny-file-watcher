@@ -164,8 +164,8 @@ func TestIntegration_NestedFileDetection(t *testing.T) {
 	require.NoError(t, os.Mkdir(subDir, 0o755))
 	time.Sleep(100 * time.Millisecond)
 
-	expectedPath := filepath.Join(subDir, "nested.txt")
-	require.NoError(t, os.WriteFile(expectedPath, []byte("hello"), 0o644))
+	filePath := filepath.Join(subDir, "nested.txt")
+	require.NoError(t, os.WriteFile(filePath, []byte("hello"), 0o644))
 
 	// Wait until the manager records the nested file.
 	require.Eventually(t, func() bool {
@@ -178,11 +178,11 @@ func TestIntegration_NestedFileDetection(t *testing.T) {
 	require.Len(t, flushes, 1)
 	assert.Equal(t, "nested-watcher", flushes[0].WatcherName)
 	assert.Equal(t, "nested.txt", flushes[0].FileName)
-	assert.Equal(t, expectedPath, flushes[0].FilePath)
+	assert.Equal(t, subDir, flushes[0].FilePath)
 	assert.Equal(t, tgtDir, flushes[0].TargetPath)
 
 	// Remove the file and verify the manager removes the pending flush.
-	require.NoError(t, os.Remove(expectedPath))
+	require.NoError(t, os.Remove(filePath))
 
 	require.Eventually(t, func() bool {
 		flushes, _ := db.ListPendingFlushes("nested-watcher")

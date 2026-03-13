@@ -5,9 +5,9 @@ import (
 	"os"
 )
 
-func InitLogging() {
+func InitLogging(level slog.Level) {
 	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
+		Level: level,
 	})
 	slog.SetDefault(slog.New(handler))
 }

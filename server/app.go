@@ -37,12 +37,21 @@ type App struct {
 // and returns a fully initialised App ready to Run.
 func NewApp() (*App, error) {
 	cfg := config2.InitConfig()
-	config2.InitLogging()
-	logger := slog.Default()
 
 	if err := cfg.Load(); err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
 	}
+
+	logLevel := slog.LevelInfo
+	if levelStr, err := cfg.String("log.level"); err == nil {
+		if err := logLevel.UnmarshalText([]byte(levelStr)); err != nil {
+			return nil, fmt.Errorf("invalid log.level %q: %w", levelStr, err)
+		}
+
+	}
+	config2.InitLogging(logLevel)
+	logger := slog.Default()
+	log.Printf("log_level=%s", logLevel)
 
 	grpcAddr, _ := cfg.String("grpc.address")
 

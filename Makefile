@@ -1,17 +1,104 @@
+SERVER_BINARY := tfws
+CLIENT_BINARY := tfw
+SERVER_PKG    := ./server
+CLIENT_PKG    := ./client
+PROTO_DIR     := grpc
+GEN_DIR       := gen/grpc
+PROTO_FILE    := $(PROTO_DIR)/filewatcher.proto
+GOPATH        := $(shell go env GOPATH)
+INSTALL_DIR   := $(GOPATH)/bin
 
-.PHONY: clean build test native run
+# Ensure GOPATH/bin is on PATH so protoc plugins and golangci-lint are found.
+export PATH := $(INSTALL_DIR):$(PATH)
 
-run:
-	@mvn quarkus:dev
+PROTOC_GEN_GO      := $(INSTALL_DIR)/protoc-gen-go
+PROTOC_GEN_GO_GRPC := $(INSTALL_DIR)/protoc-gen-go-grpc
+GOLANGCI_LINT      := $(INSTALL_DIR)/golangci-lint
 
+LAUNCH_AGENTS_DIR := $(HOME)/Library/LaunchAgents
+PLIST_LABEL       := louissantucci.tfws
+PLIST_TEMPLATE    := launchd/$(PLIST_LABEL).plist
+PLIST_DEST        := $(LAUNCH_AGENTS_DIR)/$(PLIST_LABEL).plist
+
+.PHONY: all install-tools generate build build-client build-all install test lint clean \
+        install-service uninstall-service enable-service disable-service
+
+all: generate build
+
+## install-tools: install protoc plugins and golangci-lint
+install-tools:
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+## generate: regenerate Go code from .proto file
+generate: $(PROTO_FILE) | $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_GRPC)
+	@mkdir -p $(GEN_DIR)
+	@protoc \
+		--proto_path=$(PROTO_DIR) \
+		--go_out=$(GEN_DIR) --go_opt=paths=source_relative \
+		--go-grpc_out=$(GEN_DIR) --go-grpc_opt=paths=source_relative \
+		$(PROTO_FILE)
+
+## build: compile the server binary (tfws)
+build: generate build-client build-server
+
+## build-client: compile the CLI client binary (tfw)
+build-client:
+	@go build -o $(CLIENT_BINARY) $(CLIENT_PKG)
+
+## build-all: compile both server and client binaries
+build-server: generate
+	@go build -o $(SERVER_BINARY) $(SERVER_PKG)
+
+## install: build and copy binary to GOPATH/bin
+install: build
+	@install -m 0755 $(SERVER_BINARY) $(INSTALL_DIR)/$(SERVER_BINARY)
+	@install -m 0755 $(CLIENT_BINARY) $(INSTALL_DIR)/$(CLIENT_BINARY)
+
+## test: run all tests
+test: generate
+	@go test -tags integration -race -v -timeout 30s ./...
+
+## lint: run golangci-lint
+lint: generate | $(GOLANGCI_LINT)
+	@golangci-lint run ./...
+
+## clean: remove built binaries and generated proto files
 clean:
-	@mvn clean
+	rm -f $(SERVER_BINARY) $(CLIENT_BINARY)
+	rm -f $(GEN_DIR)/*.pb.go $(GEN_DIR)/*_grpc.pb.go
 
-install:
-	@mvn clean install -DskipTests
+$(PROTOC_GEN_GO):
+	@go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 
-test:
-	@mvn test
+$(PROTOC_GEN_GO_GRPC):
+	@go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-build: clean
-	@mvn install -DskipTests -Dnative
+$(GOLANGCI_LINT):
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+## install-service: install tfws binary and register it as a macOS LaunchAgent (starts at login)
+install-service: install
+	@mkdir -p $(LAUNCH_AGENTS_DIR)
+	@sed -e 's|@@BINARY_PATH@@|$(INSTALL_DIR)/$(SERVER_BINARY)|g' \
+	     -e 's|@@HOME@@|$(HOME)|g' \
+	     $(PLIST_TEMPLATE) > $(PLIST_DEST)
+	@launchctl load -w $(PLIST_DEST)
+	@echo "tfws LaunchAgent installed and started."
+
+## uninstall-service: stop and remove the tfws LaunchAgent
+uninstall-service:
+	@launchctl unload -w $(PLIST_DEST) 2>/dev/null || true
+	@rm -f $(PLIST_DEST)
+	@echo "tfws LaunchAgent removed."
+
+## enable-service: enable (load) the tfws LaunchAgent
+enable-service:
+	@launchctl load -w $(PLIST_DEST)
+	@echo "tfws LaunchAgent enabled."
+
+## disable-service: disable (unload) the tfws LaunchAgent
+disable-service:
+	@launchctl unload -w $(PLIST_DEST)
+	@echo "tfws LaunchAgent disabled."

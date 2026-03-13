@@ -1,0 +1,171 @@
+syntax = "proto3";
+
+package filewatcher;
+
+option go_package = "tiny-file-watcher/gen/filewatcher";
+
+import "google/protobuf/timestamp.proto";
+
+// FileWatcher represents a configured directory watcher.
+message Watcher {
+  int64 id = 1;
+  string name = 2;
+  string source_path = 3;
+  bool enabled = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+message FileRedirection {
+  string watcher_name = 1;
+  string target_path = 2;
+  bool auto_flush = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+// WatchedFile represents a file detected by an active watcher.
+message WatchedFile {
+  int64 id = 1;
+  string watcher_id = 2;
+  string file_path = 3;
+  string file_name = 4;
+  bool flushed = 5;
+  google.protobuf.Timestamp detected_at = 6;
+}
+
+message GetFileRedirectionRequest {
+  string name = 1;
+}
+
+message CreateFileRedirectionRequest {
+  string watcher_name = 1;
+  string target_path = 2;
+  bool auto_flush = 3;
+}
+
+message UpdateFileRedirectionRequest {
+  string watcher_name = 1;
+  optional string target_path = 2;
+  optional bool auto_flush = 3;
+}
+
+message DeleteFileRedirectionRequest {
+  string watcher_name = 1;
+}
+
+message CreateWatcherRequest {
+  string name = 1;
+  string source_path = 2;
+}
+
+message FlushWatcherRequest {
+  string name = 1;
+}
+
+message ListPendingFilesRequest {
+  string name = 1;
+}
+
+message ListPendingFilesResponse {
+  repeated WatchedFile files = 1;
+}
+
+message GetWatcherByNameRequest {
+  string name = 1;
+}
+
+message GetWatcherByIdRequest {
+  int64 id = 1;
+}
+
+message ListWatchersRequest {}
+
+message ListWatchersResponse {
+  repeated Watcher watchers = 1;
+}
+
+message UpdateWatcherRequest {
+  int64 id = 1;
+  optional string name = 2;
+  optional string source_path = 3;
+}
+
+message DeleteWatcherRequest {
+  string name = 1;
+}
+
+message DeleteWatcherResponse {
+  bool success = 1;
+}
+
+message DeleteFileRedirectionResponse {
+  bool success = 1;
+}
+
+message FlushWatcherResponse {
+  bool success = 1;
+}
+
+message WatcherFilter {
+  int64  id           = 1;
+  string watcher_name = 2;
+  string rule_type    = 3; // "include" or "exclude"
+  string pattern_type = 4; // "extension", "name", or "glob"
+  string pattern      = 5;
+}
+
+message AddFilterRequest {
+  string watcher_name = 1;
+  string rule_type    = 2;
+  string pattern_type = 3;
+  string pattern      = 4;
+}
+
+message ListFiltersRequest {
+  string watcher_name = 1;
+}
+
+message ListFiltersResponse {
+  repeated WatcherFilter filters = 1;
+}
+
+message DeleteFilterRequest {
+  int64 id = 1;
+}
+
+message DeleteFilterResponse {
+  bool success = 1;
+}
+
+message ToggleWatcherRequest {
+  string name = 1;
+}
+
+service FileWatcherService {
+  rpc CreateWatcher(CreateWatcherRequest)       returns (Watcher);
+  rpc GetWatcherById(GetWatcherByIdRequest)     returns (Watcher);
+  rpc GetWatcherByName(GetWatcherByNameRequest) returns (Watcher);
+  rpc ListWatchers(ListWatchersRequest)         returns (ListWatchersResponse);
+  rpc UpdateWatcher(UpdateWatcherRequest)       returns (Watcher);
+  rpc DeleteWatcher(DeleteWatcherRequest)       returns (DeleteWatcherResponse);
+  rpc ToggleWatcher(ToggleWatcherRequest)       returns (Watcher);
+}
+
+service FileFlushService {
+  rpc FlushWatcher(FlushWatcherRequest) returns (FlushWatcherResponse);
+  rpc ListPendingFiles(ListPendingFilesRequest) returns (ListPendingFilesResponse);
+}
+
+service FileRedirectionService {
+  rpc GetFileRedirection(GetFileRedirectionRequest) returns (FileRedirection);
+  rpc CreateFileRedirection(CreateFileRedirectionRequest) returns (FileRedirection);
+  rpc UpdateFileRedirection(UpdateFileRedirectionRequest) returns (FileRedirection);
+  rpc DeleteFileRedirection(DeleteFileRedirectionRequest) returns (DeleteFileRedirectionResponse);
+}
+
+service WatcherFilterService {
+  rpc AddFilter(AddFilterRequest)       returns (WatcherFilter);
+  rpc ListFilters(ListFiltersRequest)   returns (ListFiltersResponse);
+  rpc DeleteFilter(DeleteFilterRequest) returns (DeleteFilterResponse);
+}

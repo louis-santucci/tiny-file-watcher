@@ -6,6 +6,8 @@ pom.xml.versionsBackup
 release.properties
 .flattened-pom.xml
 
+.github/
+
 tfw
 tfws
 

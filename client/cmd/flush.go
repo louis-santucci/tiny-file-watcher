@@ -18,11 +18,14 @@ var flushCmd = &cobra.Command{
 	Short:   "Manage watcher flushes",
 }
 
+var showPath bool
+
 func init() {
 	flushCmd.AddCommand(
 		pendingFilesCmd,
 		runFlushCmd,
 	)
+	pendingFilesCmd.Flags().BoolVarP(&showPath, "show-path", "p", false, "Show the full file path column in the output table")
 }
 
 var pendingFilesCmd = &cobra.Command{
@@ -44,7 +47,7 @@ var pendingFilesCmd = &cobra.Command{
 			return nil
 		}
 
-		printWatchedFiles(resp.Files)
+		printWatchedFiles(resp.Files, showPath)
 		return nil
 	},
 }
@@ -72,12 +75,20 @@ var runFlushCmd = &cobra.Command{
 	},
 }
 
-func printWatchedFiles(files []*pb.WatchedFile) {
+func printWatchedFiles(files []*pb.WatchedFile, showPath bool) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tWATCHER\tFILE NAME\tFILE PATH")
-	fmt.Fprintln(w, "--\t-------\t---------\t---------")
-	for _, f := range files {
-		fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", f.Id, f.WatcherId, f.FileName, shortenPath(f.FilePath, 40))
+	if showPath {
+		fmt.Fprintln(w, "ID\tWATCHER\tFILE NAME\tFILE PATH")
+		fmt.Fprintln(w, "--\t-------\t---------\t---------")
+		for _, f := range files {
+			fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", f.Id, f.WatcherId, f.FileName, shortenPath(f.FilePath, 40))
+		}
+	} else {
+		fmt.Fprintln(w, "ID\tWATCHER\tFILE NAME")
+		fmt.Fprintln(w, "--\t-------\t---------")
+		for _, f := range files {
+			fmt.Fprintf(w, "%d\t%s\t%s\n", f.Id, f.WatcherId, f.FileName)
+		}
 	}
 	w.Flush()
 }

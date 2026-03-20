@@ -88,5 +88,21 @@
 <p id="pending-files"><em>No pending files.</em></p>
 {{end}}
 
+<hr/>
+
+<h4>Upload files</h4>
+{{if .Watcher.Enabled}}
+<form hx-post="/watchers/{{.Watcher.Name}}/upload"
+      hx-encoding="multipart/form-data"
+      hx-target="#upload-result"
+      hx-swap="innerHTML">
+  <input type="file" name="files" multiple required>
+  <button type="submit">Upload</button>
+</form>
+<div id="upload-result"></div>
+{{else}}
+<p><em>Enable the watcher to upload files.</em></p>
+{{end}}
+
 <p><a href="/watchers">← Back to watchers</a></p>
 {{end}}

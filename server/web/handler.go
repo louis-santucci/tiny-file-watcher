@@ -99,6 +99,7 @@ func New(
 	h.mux.HandleFunc("GET /watchers/{name}", h.requireAuth(h.handleWatcherDetail))
 	h.mux.HandleFunc("POST /watchers/{name}/toggle", h.requireAuth(h.handleToggle))
 	h.mux.HandleFunc("POST /watchers/{name}/flush", h.requireAuth(h.handleFlush))
+	h.mux.HandleFunc("POST /watchers/{name}/upload", h.requireAuth(h.handleUpload))
 
 	return h, nil
 }

@@ -1,0 +1,25 @@
+{{template "base" .}}
+{{define "content"}}
+<h2>Dashboard</h2>
+<div class="grid">
+  <article>
+    <hgroup>
+      <h3>{{.Total}}</h3>
+      <p>Total watchers</p>
+    </hgroup>
+  </article>
+  <article>
+    <hgroup>
+      <h3>{{.Enabled}}</h3>
+      <p>Enabled watchers</p>
+    </hgroup>
+  </article>
+  <article>
+    <hgroup>
+      <h3>{{.Pending}}</h3>
+      <p>Pending files</p>
+    </hgroup>
+  </article>
+</div>
+<p><a href="/watchers" role="button">View all watchers →</a></p>
+{{end}}

@@ -1,0 +1,92 @@
+{{template "base" .}}
+{{define "content"}}
+<hgroup>
+  <h2>{{.Watcher.Name}}</h2>
+  <p>{{.Watcher.SourcePath}}</p>
+</hgroup>
+
+{{$badge := "● Disabled"}}
+{{$color := "var(--pico-color-red-550)"}}
+{{$toggleLabel := "Enable"}}
+{{if .Watcher.Enabled}}
+  {{$badge = "● Enabled"}}
+  {{$color = "var(--pico-color-green-550)"}}
+  {{$toggleLabel = "Disable"}}
+{{end}}
+
+<div class="grid">
+  <p><strong>Status:</strong> <span style="color:{{$color}}">{{$badge}}</span></p>
+  <p>
+    <button hx-post="/watchers/{{.Watcher.Name}}/toggle"
+            hx-target="#status-badge"
+            hx-swap="outerHTML"
+            class="secondary small">{{$toggleLabel}} watcher</button>
+    <span id="status-badge" style="color:{{$color}}">{{$badge}}</span>
+  </p>
+</div>
+
+<hr/>
+
+<h4>Redirection</h4>
+{{if .Redirection}}
+<table>
+  <tbody>
+    <tr><th>Target path</th><td>{{.Redirection.TargetPath}}</td></tr>
+    <tr><th>Auto-flush</th><td>{{if .Redirection.AutoFlush}}Yes{{else}}No{{end}}</td></tr>
+  </tbody>
+</table>
+{{else}}
+<p><em>No redirection configured.</em></p>
+{{end}}
+
+<hr/>
+
+<h4>Filters</h4>
+{{if .Filters}}
+<figure>
+  <table>
+    <thead>
+      <tr><th>Rule</th><th>Match by</th><th>Pattern</th></tr>
+    </thead>
+    <tbody>
+      {{range .Filters}}
+      <tr>
+        <td>{{.RuleType}}</td>
+        <td>{{.PatternType}}</td>
+        <td><code>{{.Pattern}}</code></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</figure>
+{{else}}
+<p><em>No filters configured.</em></p>
+{{end}}
+
+<hr/>
+
+<div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+  <h4 style="margin:0">Pending files</h4>
+  <button hx-post="/watchers/{{.Watcher.Name}}/flush"
+          hx-target="#pending-files"
+          hx-swap="outerHTML"
+          class="small">Flush now</button>
+</div>
+
+{{if .Pending}}
+<ul id="pending-files"
+    hx-get="/watchers/{{.Watcher.Name}}"
+    hx-trigger="every 10s"
+    hx-target="#pending-files"
+    hx-select="#pending-files"
+    hx-swap="outerHTML">
+  {{range .Pending}}
+  <li>{{.FileName}}</li>
+  {{end}}
+</ul>
+{{else}}
+<p id="pending-files"><em>No pending files.</em></p>
+{{end}}
+
+<p><a href="/watchers">← Back to watchers</a></p>
+{{end}}

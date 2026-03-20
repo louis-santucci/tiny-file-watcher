@@ -1,0 +1,43 @@
+{{template "base" .}}
+{{define "content"}}
+<h2>Watchers</h2>
+{{if .Watchers}}
+<figure>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Source path</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Watchers}}
+      {{$badge := "● Disabled"}}
+      {{$color := "var(--pico-color-red-550)"}}
+      {{$toggleLabel := "Enable"}}
+      {{if .Enabled}}
+        {{$badge = "● Enabled"}}
+        {{$color = "var(--pico-color-green-550)"}}
+        {{$toggleLabel = "Disable"}}
+      {{end}}
+      <tr id="watcher-row-{{.Name}}">
+        <td><a href="/watchers/{{.Name}}">{{.Name}}</a></td>
+        <td>{{.SourcePath}}</td>
+        <td><span style="color:{{$color}}">{{$badge}}</span></td>
+        <td>
+          <button hx-post="/watchers/{{.Name}}/toggle"
+                  hx-target="#watcher-row-{{.Name}}"
+                  hx-swap="outerHTML"
+                  class="secondary small">{{$toggleLabel}}</button>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</figure>
+{{else}}
+<p>No watchers found.</p>
+{{end}}
+{{end}}

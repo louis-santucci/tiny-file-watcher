@@ -16,6 +16,7 @@ import (
 	"tiny-file-watcher/server/interceptor"
 	"tiny-file-watcher/server/redirection"
 	"tiny-file-watcher/server/watcher"
+	"tiny-file-watcher/server/web"
 
 	"github.com/fullstorydev/grpcui/standalone"
 	"github.com/ridgelines/go-config"
@@ -31,6 +32,7 @@ type App struct {
 	mgr        *watcher.Manager
 	grpcServer *grpc.Server
 	grpcAddr   string
+	webHandler *web.Handler
 }
 
 // NewApp loads configuration, opens the database, wires up all components,
@@ -81,10 +83,19 @@ func NewApp() (*App, error) {
 
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(interceptor.UnaryLoggingInterceptor))
 	reflection.Register(grpcServer)
-	pb.RegisterFileWatcherServiceServer(grpcServer, watcher.NewManagerService(db, db, mgr, logger))
-	pb.RegisterFileRedirectionServiceServer(grpcServer, redirection.NewRedirectionService(db, db, db, logger))
-	pb.RegisterFileFlushServiceServer(grpcServer, flush.NewFlushService(db, logger))
-	pb.RegisterWatcherFilterServiceServer(grpcServer, filter.NewFilterService(db, logger))
+	watcherSvc := watcher.NewManagerService(db, db, mgr, logger)
+	redirectionSvc := redirection.NewRedirectionService(db, db, db, logger)
+	flushSvc := flush.NewFlushService(db, logger)
+	filterSvc := filter.NewFilterService(db, logger)
+	pb.RegisterFileWatcherServiceServer(grpcServer, watcherSvc)
+	pb.RegisterFileRedirectionServiceServer(grpcServer, redirectionSvc)
+	pb.RegisterFileFlushServiceServer(grpcServer, flushSvc)
+	pb.RegisterWatcherFilterServiceServer(grpcServer, filterSvc)
+
+	webHandler, err := web.New(watcherSvc, flushSvc, redirectionSvc, filterSvc)
+	if err != nil {
+		return nil, fmt.Errorf("create web handler: %w", err)
+	}
 
 	return &App{
 		config:     cfg,
@@ -92,11 +103,12 @@ func NewApp() (*App, error) {
 		mgr:        mgr,
 		grpcServer: grpcServer,
 		grpcAddr:   grpcAddr,
+		webHandler: webHandler,
 	}, nil
 }
 
-// Run starts the gRPC server and, if enabled, the debug UI. It blocks until
-// the debug UI exits (or indefinitely when it is disabled).
+// Run starts the gRPC server and, if enabled, the debug UI and web UI. It
+// blocks until all servers exit (or indefinitely when both UIs are disabled).
 func (a *App) Run() error {
 	lis, err := net.Listen("tcp", a.grpcAddr)
 	if err != nil {
@@ -110,12 +122,23 @@ func (a *App) Run() error {
 		}
 	}()
 
+	webEnabled, _ := a.config.Bool("web.enabled")
+	if webEnabled {
+		webAddr, _ := a.config.String("web.address")
+		log.Printf("web UI available at http://localhost%s", webAddr)
+		go func() {
+			if err := http.ListenAndServe(webAddr, a.webHandler); err != nil {
+				log.Fatalf("web UI: serve: %v", err)
+			}
+		}()
+	}
+
 	debugUI, _ := a.config.Bool("debug-ui.enabled")
 	if debugUI {
 		return a.enableDebugUI()
 	}
 
-	// Block forever when the debug UI is disabled.
+	// Block forever when neither UI is serving as foreground.
 	select {}
 }
 

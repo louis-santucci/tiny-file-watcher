@@ -31,6 +31,12 @@ func InitConfig() *config.Config {
 		if _, ok := settings["db.name"]; !ok {
 			return fmt.Errorf("required setting 'db.name' not set")
 		}
+		if _, ok := settings["web.address"]; !ok {
+			return fmt.Errorf("required setting 'web.address' not set")
+		}
+		if _, ok := settings["web.enabled"]; !ok {
+			return fmt.Errorf("required setting 'web.enabled' not set")
+		}
 
 		return nil
 	}

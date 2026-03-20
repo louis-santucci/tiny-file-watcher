@@ -1,0 +1,30 @@
+{{define "base"}}<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>tiny-file-watcher</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"/>
+  <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
+  <style>
+    body { padding-bottom: 2rem; }
+    nav a { font-weight: 600; }
+    .small { padding: 0.25rem 0.6rem; font-size: 0.85rem; }
+    table { width: 100%; }
+  </style>
+</head>
+<body>
+  <header class="container">
+    <nav>
+      <ul><li><strong>🗂 tiny-file-watcher</strong></li></ul>
+      <ul>
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/watchers">Watchers</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main class="container">
+    {{block "content" .}}{{end}}
+  </main>
+</body>
+</html>{{end}}

@@ -10,6 +10,8 @@ import (
 	pb "tiny-file-watcher/gen/grpc"
 )
 
+// templateFS embeds all HTML templates at compile time.
+//
 //go:embed templates/*.html
 var templateFS embed.FS
 
@@ -41,17 +43,22 @@ type Handler struct {
 	flushSvc    flushService
 	redirectSvc redirectionService
 	filterSvc   filterService
+	auth        *authProvider // nil when OIDC is disabled
+	sessions    *sessionStore // nil when OIDC is disabled
 }
 
 // pages lists the per-page templates that each embed "base.html".
-var pages = []string{"index.html", "watchers.html", "watcher.html"}
+var pages = []string{"index.html", "watchers.html", "watcher.html", "login.html"}
 
 // New wires up the HTTP handler with the given service implementations.
+// When oidcCfg.Enabled is true the OIDC provider is initialised and all
+// application routes are protected by the requireAuth middleware.
 func New(
 	watcherSvc watcherService,
 	flushSvc flushService,
 	redirectSvc redirectionService,
 	filterSvc filterService,
+	oidcCfg OIDCConfig,
 ) (*Handler, error) {
 	funcs := template.FuncMap{"join": strings.Join}
 
@@ -73,11 +80,25 @@ func New(
 		filterSvc:   filterSvc,
 	}
 
-	h.mux.HandleFunc("GET /{$}", h.handleDashboard)
-	h.mux.HandleFunc("GET /watchers", h.handleWatcherList)
-	h.mux.HandleFunc("GET /watchers/{name}", h.handleWatcherDetail)
-	h.mux.HandleFunc("POST /watchers/{name}/toggle", h.handleToggle)
-	h.mux.HandleFunc("POST /watchers/{name}/flush", h.handleFlush)
+	if oidcCfg.Enabled {
+		ap, err := newAuthProvider(context.Background(), oidcCfg)
+		if err != nil {
+			return nil, err
+		}
+		h.auth = ap
+		h.sessions = newSessionStore()
+
+		h.mux.HandleFunc("GET /auth/login", h.handleLoginPage)
+		h.mux.HandleFunc("GET /auth/authorize", h.handleLogin)
+		h.mux.HandleFunc("GET /auth/callback", h.handleCallback)
+		h.mux.HandleFunc("POST /auth/logout", h.handleLogout)
+	}
+
+	h.mux.HandleFunc("GET /{$}", h.requireAuth(h.handleDashboard))
+	h.mux.HandleFunc("GET /watchers", h.requireAuth(h.handleWatcherList))
+	h.mux.HandleFunc("GET /watchers/{name}", h.requireAuth(h.handleWatcherDetail))
+	h.mux.HandleFunc("POST /watchers/{name}/toggle", h.requireAuth(h.handleToggle))
+	h.mux.HandleFunc("POST /watchers/{name}/flush", h.requireAuth(h.handleFlush))
 
 	return h, nil
 }

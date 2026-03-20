@@ -3,6 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/fullstorydev/grpcui/standalone"
+	"github.com/ridgelines/go-config"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/reflection"
 	"log"
 	"log/slog"
 	"net"
@@ -17,12 +22,6 @@ import (
 	"tiny-file-watcher/server/redirection"
 	"tiny-file-watcher/server/watcher"
 	"tiny-file-watcher/server/web"
-
-	"github.com/fullstorydev/grpcui/standalone"
-	"github.com/ridgelines/go-config"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/reflection"
 )
 
 // App holds all application-level components.
@@ -92,7 +91,7 @@ func NewApp() (*App, error) {
 	pb.RegisterFileFlushServiceServer(grpcServer, flushSvc)
 	pb.RegisterWatcherFilterServiceServer(grpcServer, filterSvc)
 
-	webHandler, err := web.New(watcherSvc, flushSvc, redirectionSvc, filterSvc)
+	webHandler, err := web.New(watcherSvc, flushSvc, redirectionSvc, filterSvc, oidcCfgFromConfig(cfg))
 	if err != nil {
 		return nil, fmt.Errorf("create web handler: %w", err)
 	}
@@ -169,4 +168,20 @@ func (a *App) enableDebugUI() error {
 		return fmt.Errorf("debug-ui: serve: %w", err)
 	}
 	return nil
+}
+
+// oidcCfgFromConfig reads OIDC settings from the application config.
+func oidcCfgFromConfig(cfg *config.Config) web.OIDCConfig {
+	enabled, _ := cfg.Bool("oidc.enabled")
+	issuer, _ := cfg.String("oidc.issuer")
+	clientID, _ := cfg.String("oidc.client-id")
+	clientSecret, _ := cfg.String("oidc.client-secret")
+	redirectURI, _ := cfg.String("oidc.redirect-uri")
+	return web.OIDCConfig{
+		Enabled:      enabled,
+		Issuer:       issuer,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		RedirectURI:  redirectURI,
+	}
 }

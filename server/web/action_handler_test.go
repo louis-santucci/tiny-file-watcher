@@ -22,7 +22,7 @@ func TestHandleToggle_Success(t *testing.T) {
 	watcherSvc.On("ToggleWatcher", mock.Anything, &pb.ToggleWatcherRequest{Name: "alpha"}).
 		Return(&pb.Watcher{Name: "alpha", SourcePath: "/src/alpha", Enabled: true}, nil)
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/watchers/alpha/toggle", nil)
@@ -41,7 +41,7 @@ func TestHandleToggle_DisabledWatcher(t *testing.T) {
 	watcherSvc.On("ToggleWatcher", mock.Anything, &pb.ToggleWatcherRequest{Name: "beta"}).
 		Return(&pb.Watcher{Name: "beta", SourcePath: "/src/beta", Enabled: false}, nil)
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/watchers/beta/toggle", nil)
@@ -58,7 +58,7 @@ func TestHandleToggle_ServiceError(t *testing.T) {
 	watcherSvc.On("ToggleWatcher", mock.Anything, mock.Anything).
 		Return(nil, errors.New("toggle failed"))
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/watchers/alpha/toggle", nil)
@@ -78,7 +78,7 @@ func TestHandleFlush_Success(t *testing.T) {
 	flushSvc.On("ListPendingFiles", mock.Anything, &pb.ListPendingFilesRequest{Name: "alpha"}).
 		Return(&pb.ListPendingFilesResponse{Files: []*pb.WatchedFile{{FileName: "report.csv"}}}, nil)
 
-	h, err := New(&mockWatcherService{}, flushSvc, &mockRedirectionService{}, &mockFilterService{})
+	h, err := New(&mockWatcherService{}, flushSvc, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/watchers/alpha/flush", nil)
@@ -98,7 +98,7 @@ func TestHandleFlush_EmptyPendingFiles(t *testing.T) {
 	flushSvc.On("ListPendingFiles", mock.Anything, &pb.ListPendingFilesRequest{Name: "alpha"}).
 		Return(&pb.ListPendingFilesResponse{Files: nil}, nil)
 
-	h, err := New(&mockWatcherService{}, flushSvc, &mockRedirectionService{}, &mockFilterService{})
+	h, err := New(&mockWatcherService{}, flushSvc, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/watchers/alpha/flush", nil)
@@ -118,7 +118,7 @@ func TestHandleFlush_NotFoundFlushIsIgnored(t *testing.T) {
 	flushSvc.On("ListPendingFiles", mock.Anything, &pb.ListPendingFilesRequest{Name: "alpha"}).
 		Return(&pb.ListPendingFilesResponse{Files: nil}, nil)
 
-	h, err := New(&mockWatcherService{}, flushSvc, &mockRedirectionService{}, &mockFilterService{})
+	h, err := New(&mockWatcherService{}, flushSvc, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/watchers/alpha/flush", nil)
@@ -133,7 +133,7 @@ func TestHandleFlush_FlushServiceError(t *testing.T) {
 	flushSvc.On("FlushWatcher", mock.Anything, mock.Anything).
 		Return(nil, errors.New("internal flush error"))
 
-	h, err := New(&mockWatcherService{}, flushSvc, &mockRedirectionService{}, &mockFilterService{})
+	h, err := New(&mockWatcherService{}, flushSvc, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/watchers/alpha/flush", nil)
@@ -151,7 +151,7 @@ func TestHandleFlush_ListPendingFilesError(t *testing.T) {
 	flushSvc.On("ListPendingFiles", mock.Anything, mock.Anything).
 		Return(nil, errors.New("db error"))
 
-	h, err := New(&mockWatcherService{}, flushSvc, &mockRedirectionService{}, &mockFilterService{})
+	h, err := New(&mockWatcherService{}, flushSvc, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/watchers/alpha/flush", nil)

@@ -6,6 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		EB1E37E52F6D8EFB00DE132B /* GRPCProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = EB1E37E42F6D8EFB00DE132B /* GRPCProtobuf */; };
+		EB1E37E82F6D8FB200DE132B /* GRPCNIOTransportHTTP2 in Frameworks */ = {isa = PBXBuildFile; productRef = EB1E37E72F6D8FB200DE132B /* GRPCNIOTransportHTTP2 */; };
+		EB1E37EA2F6D8FB200DE132B /* GRPCNIOTransportHTTP2Posix in Frameworks */ = {isa = PBXBuildFile; productRef = EB1E37E92F6D8FB200DE132B /* GRPCNIOTransportHTTP2Posix */; };
+		EB1E37EC2F6D8FB200DE132B /* GRPCNIOTransportHTTP2TransportServices in Frameworks */ = {isa = PBXBuildFile; productRef = EB1E37EB2F6D8FB200DE132B /* GRPCNIOTransportHTTP2TransportServices */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		EB1E37AA2F6D819E00DE132B /* tiny-file-watcher-app.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "tiny-file-watcher-app.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +30,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EB1E37EC2F6D8FB200DE132B /* GRPCNIOTransportHTTP2TransportServices in Frameworks */,
+				EB1E37E82F6D8FB200DE132B /* GRPCNIOTransportHTTP2 in Frameworks */,
+				EB1E37EA2F6D8FB200DE132B /* GRPCNIOTransportHTTP2Posix in Frameworks */,
+				EB1E37E52F6D8EFB00DE132B /* GRPCProtobuf in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +76,10 @@
 			);
 			name = "tiny-file-watcher-app";
 			packageProductDependencies = (
+				EB1E37E42F6D8EFB00DE132B /* GRPCProtobuf */,
+				EB1E37E72F6D8FB200DE132B /* GRPCNIOTransportHTTP2 */,
+				EB1E37E92F6D8FB200DE132B /* GRPCNIOTransportHTTP2Posix */,
+				EB1E37EB2F6D8FB200DE132B /* GRPCNIOTransportHTTP2TransportServices */,
 			);
 			productName = "tiny-file-watcher-app";
 			productReference = EB1E37AA2F6D819E00DE132B /* tiny-file-watcher-app.app */;
@@ -96,6 +111,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				EB1E37C22F6D846400DE132B /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */,
+				EB1E37E32F6D8EFB00DE132B /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */,
+				EB1E37E62F6D8FB200DE132B /* XCRemoteSwiftPackageReference "grpc-swift-nio-transport" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = EB1E37AB2F6D819E00DE132B /* Products */;
@@ -345,7 +362,46 @@
 				minimumVersion = 0.63.2;
 			};
 		};
+		EB1E37E32F6D8EFB00DE132B /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/grpc/grpc-swift-protobuf";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.2.1;
+			};
+		};
+		EB1E37E62F6D8FB200DE132B /* XCRemoteSwiftPackageReference "grpc-swift-nio-transport" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/grpc/grpc-swift-nio-transport.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		EB1E37E42F6D8EFB00DE132B /* GRPCProtobuf */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EB1E37E32F6D8EFB00DE132B /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */;
+			productName = GRPCProtobuf;
+		};
+		EB1E37E72F6D8FB200DE132B /* GRPCNIOTransportHTTP2 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EB1E37E62F6D8FB200DE132B /* XCRemoteSwiftPackageReference "grpc-swift-nio-transport" */;
+			productName = GRPCNIOTransportHTTP2;
+		};
+		EB1E37E92F6D8FB200DE132B /* GRPCNIOTransportHTTP2Posix */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EB1E37E62F6D8FB200DE132B /* XCRemoteSwiftPackageReference "grpc-swift-nio-transport" */;
+			productName = GRPCNIOTransportHTTP2Posix;
+		};
+		EB1E37EB2F6D8FB200DE132B /* GRPCNIOTransportHTTP2TransportServices */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EB1E37E62F6D8FB200DE132B /* XCRemoteSwiftPackageReference "grpc-swift-nio-transport" */;
+			productName = GRPCNIOTransportHTTP2TransportServices;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = EB1E37A22F6D819E00DE132B /* Project object */;
 }

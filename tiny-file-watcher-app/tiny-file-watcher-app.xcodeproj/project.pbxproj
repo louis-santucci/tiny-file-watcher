@@ -7,19 +7,19 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		EB6FEB5E2F6D628000B5B040 /* tfw-ios-app.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "tfw-ios-app.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EB1E37AA2F6D819E00DE132B /* tiny-file-watcher-app.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "tiny-file-watcher-app.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		EB6FEB602F6D628000B5B040 /* tfw-ios-app */ = {
+		EB1E37AC2F6D819E00DE132B /* tiny-file-watcher-app */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "tfw-ios-app";
+			path = "tiny-file-watcher-app";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		EB6FEB5B2F6D628000B5B040 /* Frameworks */ = {
+		EB1E37A72F6D819E00DE132B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -29,18 +29,18 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		EB6FEB552F6D628000B5B040 = {
+		EB1E37A12F6D819E00DE132B = {
 			isa = PBXGroup;
 			children = (
-				EB6FEB602F6D628000B5B040 /* tfw-ios-app */,
-				EB6FEB5F2F6D628000B5B040 /* Products */,
+				EB1E37AC2F6D819E00DE132B /* tiny-file-watcher-app */,
+				EB1E37AB2F6D819E00DE132B /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		EB6FEB5F2F6D628000B5B040 /* Products */ = {
+		EB1E37AB2F6D819E00DE132B /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				EB6FEB5E2F6D628000B5B040 /* tfw-ios-app.app */,
+				EB1E37AA2F6D819E00DE132B /* tiny-file-watcher-app.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,65 +48,67 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		EB6FEB5D2F6D628000B5B040 /* tfw-ios-app */ = {
+		EB1E37A92F6D819E00DE132B /* tiny-file-watcher-app */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EB6FEB692F6D628100B5B040 /* Build configuration list for PBXNativeTarget "tfw-ios-app" */;
+			buildConfigurationList = EB1E37B52F6D819F00DE132B /* Build configuration list for PBXNativeTarget "tiny-file-watcher-app" */;
 			buildPhases = (
-				EB6FEB5A2F6D628000B5B040 /* Sources */,
-				EB6FEB5B2F6D628000B5B040 /* Frameworks */,
-				EB6FEB5C2F6D628000B5B040 /* Resources */,
-				EB6FEB7C2F6D674800B5B040 /* ShellScript */,
+				EB1E37A62F6D819E00DE132B /* Sources */,
+				EB1E37A72F6D819E00DE132B /* Frameworks */,
+				EB1E37A82F6D819E00DE132B /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				EB6FEB602F6D628000B5B040 /* tfw-ios-app */,
+				EB1E37AC2F6D819E00DE132B /* tiny-file-watcher-app */,
 			);
-			name = "tfw-ios-app";
+			name = "tiny-file-watcher-app";
 			packageProductDependencies = (
 			);
-			productName = "tfw-ios-app";
-			productReference = EB6FEB5E2F6D628000B5B040 /* tfw-ios-app.app */;
+			productName = "tiny-file-watcher-app";
+			productReference = EB1E37AA2F6D819E00DE132B /* tiny-file-watcher-app.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		EB6FEB562F6D628000B5B040 /* Project object */ = {
+		EB1E37A22F6D819E00DE132B /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2630;
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
-					EB6FEB5D2F6D628000B5B040 = {
+					EB1E37A92F6D819E00DE132B = {
 						CreatedOnToolsVersion = 26.3;
 					};
 				};
 			};
-			buildConfigurationList = EB6FEB592F6D628000B5B040 /* Build configuration list for PBXProject "tfw-ios-app" */;
+			buildConfigurationList = EB1E37A52F6D819E00DE132B /* Build configuration list for PBXProject "tiny-file-watcher-app" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
 			);
-			mainGroup = EB6FEB552F6D628000B5B040;
+			mainGroup = EB1E37A12F6D819E00DE132B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				EB1E37C22F6D846400DE132B /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */,
+			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = EB6FEB5F2F6D628000B5B040 /* Products */;
+			productRefGroup = EB1E37AB2F6D819E00DE132B /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				EB6FEB5D2F6D628000B5B040 /* tfw-ios-app */,
+				EB1E37A92F6D819E00DE132B /* tiny-file-watcher-app */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		EB6FEB5C2F6D628000B5B040 /* Resources */ = {
+		EB1E37A82F6D819E00DE132B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -115,30 +117,8 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXShellScriptBuildPhase section */
-		EB6FEB7C2F6D674800B5B040 /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "if [[ \"$(uname -m)\" == arm64 ]]; then\n    export PATH=\"/opt/homebrew/bin:$PATH\"\nfi\n\nif which swiftlint > /dev/null; then\n  swiftlint\nelse\n  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"\nfi\n";
-			showEnvVarsInLog = 0;
-		};
-/* End PBXShellScriptBuildPhase section */
-
 /* Begin PBXSourcesBuildPhase section */
-		EB6FEB5A2F6D628000B5B040 /* Sources */ = {
+		EB1E37A62F6D819E00DE132B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -148,7 +128,7 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		EB6FEB672F6D628100B5B040 /* Debug */ = {
+		EB1E37B32F6D819F00DE132B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -212,7 +192,7 @@
 			};
 			name = Debug;
 		};
-		EB6FEB682F6D628100B5B040 /* Release */ = {
+		EB1E37B42F6D819F00DE132B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -269,7 +249,7 @@
 			};
 			name = Release;
 		};
-		EB6FEB6A2F6D628100B5B040 /* Debug */ = {
+		EB1E37B62F6D819F00DE132B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -278,7 +258,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 44KP22M5BR;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -290,7 +269,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "io.github.louissantucci.tfw-ios-app";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.github.louissantucci.tiny-file-watcher-app";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -302,7 +281,7 @@
 			};
 			name = Debug;
 		};
-		EB6FEB6B2F6D628100B5B040 /* Release */ = {
+		EB1E37B72F6D819F00DE132B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -311,7 +290,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 44KP22M5BR;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -323,7 +301,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "io.github.louissantucci.tfw-ios-app";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.github.louissantucci.tiny-file-watcher-app";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -338,25 +316,36 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		EB6FEB592F6D628000B5B040 /* Build configuration list for PBXProject "tfw-ios-app" */ = {
+		EB1E37A52F6D819E00DE132B /* Build configuration list for PBXProject "tiny-file-watcher-app" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				EB6FEB672F6D628100B5B040 /* Debug */,
-				EB6FEB682F6D628100B5B040 /* Release */,
+				EB1E37B32F6D819F00DE132B /* Debug */,
+				EB1E37B42F6D819F00DE132B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EB6FEB692F6D628100B5B040 /* Build configuration list for PBXNativeTarget "tfw-ios-app" */ = {
+		EB1E37B52F6D819F00DE132B /* Build configuration list for PBXNativeTarget "tiny-file-watcher-app" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				EB6FEB6A2F6D628100B5B040 /* Debug */,
-				EB6FEB6B2F6D628100B5B040 /* Release */,
+				EB1E37B62F6D819F00DE132B /* Debug */,
+				EB1E37B72F6D819F00DE132B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		EB1E37C22F6D846400DE132B /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SimplyDanny/SwiftLintPlugins";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.63.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 	};
-	rootObject = EB6FEB562F6D628000B5B040 /* Project object */;
+	rootObject = EB1E37A22F6D819E00DE132B /* Project object */;
 }

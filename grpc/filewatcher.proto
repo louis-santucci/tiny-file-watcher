@@ -56,6 +56,8 @@ message DeleteFileRedirectionRequest {
 message CreateWatcherRequest {
   string name = 1;
   string source_path = 2;
+  bool flush_existing = 3;
+  repeated AddFilterRequest filters = 4;
 }
 
 message FlushWatcherRequest {

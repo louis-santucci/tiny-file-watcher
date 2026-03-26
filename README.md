@@ -152,7 +152,7 @@ gen/grpc/               # generated protobuf stubs (do not edit manually)
 server/                 # gRPC server (tfws)
   app.go                # component wiring
   database/             # SQLite persistence layer + schema.sql
-  watcher/              # fsnotify goroutine manager + FileWatcherService
+  watcher/              # FileWatcherService, and synchronization mechanism
   flush/                # FileFlushService
   redirection/          # FileRedirectionService
   filter/               # WatcherFilterService

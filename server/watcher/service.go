@@ -4,7 +4,9 @@ import (
 	"context"
 	"io/fs"
 	"log/slog"
+	"os"
 	"path/filepath"
+	"tiny-file-watcher/internal"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -40,7 +42,47 @@ func (s *WatcherService) CreateWatcher(_ context.Context, req *pb.CreateWatcherR
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create watcher: %v", err)
 	}
+	filters := make([]*database.WatcherFilter, 0, len(req.Filters))
+	if len(req.Filters) > 0 {
+		for _, f := range req.Filters {
+			if newFilter, err := s.filterRepository.AddFilter(req.Name, f.RuleType, f.PatternType, f.Pattern); err != nil {
+				s.logger.Error("create watcher: error creating filter", "watcher", req.Name, "filter", f, "err", err)
+			} else {
+				filters = append(filters, newFilter)
+			}
+		}
+	}
+	if req.FlushExisting {
+		s.flushExistingFiles(w, filters, s.fileRepository, s.logger)
+	}
+
 	return toProto(w), nil
+}
+
+func (s *WatcherService) flushExistingFiles(w *database.FileWatcher, filters []*database.WatcherFilter, fileRepo FileRepository, logger *slog.Logger) {
+	queue := []string{w.SourcePath}
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		entries, err := os.ReadDir(current)
+		if err != nil {
+			s.logger.Error("create watcher: error reading dir", "path", current, "err", err)
+			continue
+		}
+		for _, entry := range entries {
+			fullPath := filepath.Join(current, entry.Name())
+			if entry.IsDir() {
+				queue = append(queue, fullPath) // enqueue subdirectory
+				continue
+			}
+			if Evaluate(filters, fullPath) {
+				if _, err := s.fileRepository.AddWatchedFile(w.Name, fullPath, true); err != nil {
+					s.logger.Error("create watcher: error adding file", "watcher", w.Name, "path", fullPath, "err", err)
+				}
+			}
+		}
+	}
 }
 
 func (s *WatcherService) GetWatcherById(_ context.Context, req *pb.GetWatcherByIdRequest) (*pb.Watcher, error) {
@@ -114,7 +156,7 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 	}
 
 	// Walk the source directory and collect all files that pass the filters.
-	onDisk := make(map[string]struct{})
+	onDisk := internal.NewSet[string]()
 	walkErr := filepath.WalkDir(w.SourcePath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // skip unreadable entries
@@ -123,7 +165,7 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 			return nil
 		}
 		if Evaluate(filters, path) {
-			onDisk[path] = struct{}{}
+			onDisk.Add(path)
 		}
 		return nil
 	})
@@ -131,21 +173,23 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 		return nil, status.Errorf(codes.Internal, "walk source path: %v", walkErr)
 	}
 
-	// Load current unflushed watched files from DB.
+	// Load current watched files from DB.
 	existing, err := s.fileRepository.ListWatchedFiles(req.Name)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list watched files: %v", err)
 	}
-	inDB := make(map[string]struct{}, len(existing))
+	dbEntries := internal.NewSetWithSize[string](len(existing))
 	for _, f := range existing {
-		inDB[f.FilePath] = struct{}{}
+		dbEntries.Add(f.FilePath)
 	}
 
 	var addedFiles, removedFiles []string
 
 	// Add files that are on disk but not in the DB.
-	for path := range onDisk {
-		if _, exists := inDB[path]; !exists {
+	diskItems := onDisk.Items()
+	for i := range len(diskItems) {
+		path := diskItems[i]
+		if exists := dbEntries.Contains(path); !exists {
 			if _, err := s.fileRepository.AddWatchedFile(req.Name, path, false); err != nil {
 				s.logger.Error("sync: error adding file", "watcher", req.Name, "path", path, "err", err)
 			} else {
@@ -155,8 +199,10 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 	}
 
 	// Remove DB entries for files no longer on disk.
-	for path := range inDB {
-		if _, exists := onDisk[path]; !exists {
+	dbItems := dbEntries.Items()
+	for i := range len(dbItems) {
+		path := dbItems[i]
+		if exists := onDisk.Contains(path); !exists {
 			if err := s.fileRepository.RemoveWatchedFile(req.Name, path); err != nil {
 				s.logger.Error("sync: error removing file", "watcher", req.Name, "path", path, "err", err)
 			} else {

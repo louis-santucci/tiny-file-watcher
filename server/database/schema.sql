@@ -1,10 +1,10 @@
 CREATE TABLE IF NOT EXISTS file_watchers
 (
-    id          INTEGER PRIMARY KEY,
-    name        TEXT UNIQUE NOT NULL,
-    source_path TEXT        NOT NULL,
-    created_at  TEXT        NOT NULL,
-    updated_at  TEXT        NOT NULL
+    id             INTEGER PRIMARY KEY,
+    name           TEXT UNIQUE NOT NULL,
+    source_path    TEXT        NOT NULL,
+    created_at     TEXT        NOT NULL,
+    updated_at     TEXT        NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_file_watchers_name ON file_watchers (name);

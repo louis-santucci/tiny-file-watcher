@@ -59,6 +59,21 @@ func TestCreateWatcher_OK(t *testing.T) {
 	fileWatcherRepo.AssertExpectations(t)
 }
 
+func TestCreateWatcher_WithFlushExisting(t *testing.T) {
+	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
+	fileRepo := &mocks.MockFileRepository{}
+	filterRepo := &mocks.MockFilterRepository{}
+	svc := newService(fileWatcherRepo, fileRepo, filterRepo)
+
+	w := newWatcher(1, "my-watcher", "/tmp/src")
+	fileWatcherRepo.On("CreateWatcher", "my-watcher", "/tmp/src").Return(w, nil)
+
+	_, err := svc.CreateWatcher(ctx, &pb.CreateWatcherRequest{Name: "my-watcher", SourcePath: "/tmp/src", FlushExisting: true})
+
+	assert.NoError(t, err)
+	fileWatcherRepo.AssertExpectations(t)
+}
+
 func TestCreateWatcher_MissingName(t *testing.T) {
 	svc := newService(&mocks.MockFileWatcherRepository{}, &mocks.MockFileRepository{}, &mocks.MockFilterRepository{})
 
@@ -425,7 +440,7 @@ func TestSyncWatcher_FilterApplied(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), resp.AddedCount)
 	fileRepo.AssertExpectations(t)
-	fileRepo.AssertNotCalled(t, "AddWatchedFile", "w", rejected, false)
+	fileRepo.AssertNotCalled(t, "AddWatchedFile", "w", rejected, true)
 }
 
 func TestSyncWatcher_WatcherNotFound(t *testing.T) {
@@ -470,6 +485,60 @@ func TestSyncWatcher_AlreadyInDB_NotReAdded(t *testing.T) {
 	assert.Equal(t, int32(0), resp.AddedCount)
 	assert.Equal(t, int32(0), resp.RemovedCount)
 	fileRepo.AssertNotCalled(t, "AddWatchedFile", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestSyncWatcher_FlushExistingTrue_FilesAddedAsPending(t *testing.T) {
+	dir := t.TempDir()
+	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
+	fileRepo := &mocks.MockFileRepository{}
+	filterRepo := &mocks.MockFilterRepository{}
+	svc := newService(fileWatcherRepo, fileRepo, filterRepo)
+
+	f1 := filepath.Join(dir, "existing.txt")
+	require(t, os.WriteFile(f1, []byte("x"), 0o644))
+
+	// Watcher has flush_existing=true → files should be added as pending (flushed=false).
+	w := newWatcher(1, "w", dir)
+	watchedFile := &database.WatchedFile{ID: 1, WatcherName: "w", FilePath: f1, Flushed: true}
+	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
+	filterRepo.On("GetFiltersForWatcher", "w").Return([]*database.WatcherFilter{}, nil)
+	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{watchedFile}, nil)
+	fileRepo.On("AddWatchedFile", "w", f1, true).Return(&database.WatchedFile{}, nil)
+	fileWatcherRepo.On("CreateWatcher", "w", dir).Return(w, nil)
+
+	_, err := svc.CreateWatcher(ctx, &pb.CreateWatcherRequest{Name: "w", SourcePath: dir, FlushExisting: true})
+	if err != nil {
+		t.Fatalf("CreateWatcher error: %v", err)
+	}
+	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
+
+	assert.NoError(t, err)
+	assert.Equal(t, int32(0), resp.AddedCount)
+	fileRepo.AssertExpectations(t)
+}
+
+func TestSyncWatcher_FlushExistingFalse_FilesAddedAsFlushed(t *testing.T) {
+	dir := t.TempDir()
+	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
+	fileRepo := &mocks.MockFileRepository{}
+	filterRepo := &mocks.MockFilterRepository{}
+	svc := newService(fileWatcherRepo, fileRepo, filterRepo)
+
+	f1 := filepath.Join(dir, "existing.txt")
+	require(t, os.WriteFile(f1, []byte("x"), 0o644))
+
+	// Watcher has flush_existing=false (default) → files added as already flushed (flushed=true).
+	w := newWatcher(1, "w", dir)
+	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
+	filterRepo.On("GetFiltersForWatcher", "w").Return([]*database.WatcherFilter{}, nil)
+	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
+	fileRepo.On("AddWatchedFile", "w", f1, false).Return(&database.WatchedFile{}, nil)
+
+	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
+
+	assert.NoError(t, err)
+	assert.Equal(t, int32(1), resp.AddedCount)
+	fileRepo.AssertExpectations(t)
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────

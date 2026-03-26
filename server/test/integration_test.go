@@ -49,14 +49,14 @@ func TestIntegration_WatcherLifecycle(t *testing.T) {
 
 // ── ListWatchedFiles ──────────────────────────────────────────────────────────
 
-func TestIntegration_ListWatchedFiles_UnflushedOnly(t *testing.T) {
+func TestIntegration_ListWatchedFiles(t *testing.T) {
 	db := newDB(t)
 	srcDir := t.TempDir()
 
 	_, err := db.CreateWatcher("list-watcher", srcDir)
 	require.NoError(t, err)
 
-	_, err = db.AddWatchedFile("list-watcher", filepath.Join(srcDir, "pending.txt"), false)
+	_, err = db.AddWatchedFile("list-watcher", filepath.Join(srcDir, "pending.txt"), true)
 	require.NoError(t, err)
 	wf2, err := db.AddWatchedFile("list-watcher", filepath.Join(srcDir, "flushed.txt"), false)
 	require.NoError(t, err)
@@ -66,8 +66,7 @@ func TestIntegration_ListWatchedFiles_UnflushedOnly(t *testing.T) {
 
 	files, err := db.ListWatchedFiles("list-watcher")
 	require.NoError(t, err)
-	require.Len(t, files, 1)
-	assert.Contains(t, files[0].FilePath, "pending.txt")
+	require.Len(t, files, 2)
 }
 
 // ── Cascade delete ────────────────────────────────────────────────────────────

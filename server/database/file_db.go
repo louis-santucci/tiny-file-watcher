@@ -61,7 +61,7 @@ func (db *DB) RemoveWatchedFile(watcherName string, filePath string) error {
 func (db *DB) ListWatchedFiles(watcherName string) ([]*WatchedFile, error) {
 	rows, err := db.conn.Query(
 		`SELECT id, watcher_name, file_path, file_name, flushed, detected_at
-		 FROM watched_files WHERE watcher_name = ? AND flushed = 0`, watcherName)
+		 FROM watched_files WHERE watcher_name = ?`, watcherName)
 	if err != nil {
 		return nil, fmt.Errorf("list watched files: %w", err)
 	}

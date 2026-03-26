@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -22,6 +23,12 @@ func init() {
 	// create
 	createWatcherCmd.Flags().StringP("path", "p", "", "Source path to watch (required)")
 	_ = createWatcherCmd.MarkFlagRequired("path")
+	createWatcherCmd.Flags().Bool("flush-existing", false, "Add files already on disk as pending (to be flushed); by default they are recorded as already flushed")
+	createWatcherCmd.Flags().StringArrayP("filter", "f", nil,
+		`Filter rule in the form rule_type:pattern_type:pattern (repeatable).
+    rule_type    : include | exclude
+    pattern_type : extension | name | glob
+    Example: --filter include:extension:.go --filter exclude:glob:*_test.go`)
 
 	// update
 	updateWatcherCmd.Flags().String("name", "", "New name for the watcher")
@@ -60,11 +67,11 @@ var getWatcherCmd = &cobra.Command{
 	Short: "Get a watcher by name",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		svc := pb.NewFileWatcherServiceClient(conn)
+		watcherSvc := pb.NewFileWatcherServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		w, err := svc.GetWatcherByName(ctx, &pb.GetWatcherByNameRequest{Name: args[0]})
+		w, err := watcherSvc.GetWatcherByName(ctx, &pb.GetWatcherByNameRequest{Name: args[0]})
 		if err != nil {
 			return err
 		}
@@ -80,17 +87,40 @@ var createWatcherCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path, _ := cmd.Flags().GetString("path")
+		flushExisting, _ := cmd.Flags().GetBool("flush-existing")
+		filters, _ := cmd.Flags().GetStringArray("filter")
 
-		svc := pb.NewFileWatcherServiceClient(conn)
+		watcherSvc := pb.NewFileWatcherServiceClient(conn)
+		watcherFilterSvc := pb.NewWatcherFilterServiceClient(conn)
+
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		w, err := svc.CreateWatcher(ctx, &pb.CreateWatcherRequest{
-			Name:       args[0],
-			SourcePath: path,
+		w, err := watcherSvc.CreateWatcher(ctx, &pb.CreateWatcherRequest{
+			Name:          args[0],
+			SourcePath:    path,
+			FlushExisting: flushExisting,
 		})
 		if err != nil {
 			return err
+		}
+
+		if len(filters) > 0 {
+			for _, f := range filters {
+				parts := strings.SplitN(f, ":", 3)
+				if len(parts) != 3 {
+					return fmt.Errorf("invalid filter format: %q", f)
+				}
+				_, err = watcherFilterSvc.AddFilter(ctx, &pb.AddFilterRequest{
+					WatcherName: w.Name,
+					RuleType:    parts[0],
+					PatternType: parts[1],
+					Pattern:     parts[2],
+				})
+				if err != nil {
+					return fmt.Errorf("add filter %q: %w", f, err)
+				}
+			}
 		}
 
 		fmt.Println("Watcher created:")

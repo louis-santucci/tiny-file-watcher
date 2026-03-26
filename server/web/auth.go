@@ -21,11 +21,12 @@ const (
 
 // OIDCConfig holds the OIDC provider settings read from config.
 type OIDCConfig struct {
-	Enabled      bool
-	Issuer       string
-	ClientID     string
-	ClientSecret string
-	RedirectURI  string
+	Enabled        bool
+	Issuer         string
+	ClientID       string
+	DeviceClientID string
+	ClientSecret   string
+	RedirectURI    string
 }
 
 // authProvider wraps the OIDC provider and OAuth2 config.

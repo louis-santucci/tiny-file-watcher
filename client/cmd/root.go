@@ -3,15 +3,11 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"tiny-file-watcher/client/auth"
 
-	"github.com/ridgelines/go-config"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-)
-
-const (
-	defaultConfigPath = "/Users/louissantucci/.tfw/tfw.yml"
 )
 
 var conn *grpc.ClientConn
@@ -41,31 +37,37 @@ func init() {
 	rootCmd.AddCommand(redirectionCmd)
 	rootCmd.AddCommand(flushCmd)
 	rootCmd.AddCommand(filterCmd)
+	rootCmd.AddCommand(loginCmd)
+	rootCmd.AddCommand(logoutCmd)
 }
 
 func dial() error {
-	addr, err := readGRPCAddress()
+	cfg, err := loadClientConfig()
 	if err != nil {
-		return fmt.Errorf("could not read server address from config: %w", err)
+		return fmt.Errorf("load client config: %w", err)
 	}
-	c, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	var opts []grpc.DialOption
+
+	oidcEnabled, _ := cfg.Bool("oidc.enabled")
+	if oidcEnabled {
+		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+		oidcIssuer, _ := cfg.String("oidc.issuer")
+		oidcClientID, _ := cfg.String("oidc.device-client-id")
+
+		oidcCredentials, err := auth.NewTokenCredentials(oidcIssuer, oidcClientID)
+		if err != nil {
+			return err // "not logged in: run 'tfw login' first"
+		}
+		opts = append(opts, grpc.WithPerRPCCredentials(oidcCredentials))
+	}
+	addr, _ := cfg.String("grpc.address")
+
+	c, err := grpc.NewClient(addr, opts...)
 	if err != nil {
 		return fmt.Errorf("could not connect to %s: %w", addr, err)
 	}
 	conn = c
 	return nil
-}
-
-func readGRPCAddress() (string, error) {
-	yamlFile := config.NewYAMLFile(defaultConfigPath)
-	loader := config.NewOnceLoader(yamlFile)
-	cfg := config.NewConfig([]config.Provider{loader})
-	if err := cfg.Load(); err != nil {
-		return "", err
-	}
-	addr, err := cfg.String("grpc.address")
-	if err != nil || addr == "" {
-		return "", fmt.Errorf("grpc.address not set in %s", defaultConfigPath)
-	}
-	return addr, nil
 }

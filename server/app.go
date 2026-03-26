@@ -3,16 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/fullstorydev/grpcui/standalone"
-	"github.com/ridgelines/go-config"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/reflection"
 	"log"
 	"log/slog"
 	"net"
 	"net/http"
 	"time"
+	"tiny-file-watcher/internal"
+
 	pb "tiny-file-watcher/gen/grpc"
 	config2 "tiny-file-watcher/server/config"
 	"tiny-file-watcher/server/database"
@@ -22,7 +19,16 @@ import (
 	"tiny-file-watcher/server/redirection"
 	"tiny-file-watcher/server/watcher"
 	"tiny-file-watcher/server/web"
+
+	gooidc "github.com/coreos/go-oidc/v3/oidc"
+	"github.com/fullstorydev/grpcui/standalone"
+	"github.com/ridgelines/go-config"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/reflection"
 )
+
+var validator = config2.ServerConfigValidator
 
 // App holds all application-level components.
 type App struct {
@@ -36,7 +42,7 @@ type App struct {
 // NewApp loads configuration, opens the database, wires up all components,
 // and returns a fully initialised App ready to Run.
 func NewApp() (*App, error) {
-	cfg := config2.InitConfig()
+	cfg := internal.InitConfig(&validator)
 
 	if err := cfg.Load(); err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
@@ -55,15 +61,31 @@ func NewApp() (*App, error) {
 
 	grpcAddr, _ := cfg.String("grpc.address")
 
-	dbName, _ := cfg.String("db.name")
-	dbPath := config2.DefaultDBPath + "/" + dbName
-
-	db, err := database.Open(dbPath)
+	db, err := database.Open(internal.DatabasePath())
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(interceptor.UnaryLoggingInterceptor))
+	oidcCfg := oidcCfgFromConfig(cfg)
+
+	var tokenVerifier interceptor.TokenVerifier
+	if oidcCfg.Enabled {
+		provider, err := gooidc.NewProvider(context.Background(), oidcCfg.Issuer)
+		if err != nil {
+			return nil, fmt.Errorf("oidc provider discovery: %w", err)
+		}
+		v := provider.Verifier(&gooidc.Config{ClientID: oidcCfg.DeviceClientID})
+		tokenVerifier = interceptor.NewOIDCTokenVerifier(v)
+	} else {
+		tokenVerifier = interceptor.NewNoopVerifier()
+	}
+
+	unaryAuth, streamAuthInterceptor := interceptor.NewAuthInterceptors(tokenVerifier)
+
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(interceptor.UnaryLoggingInterceptor, unaryAuth),
+		grpc.ChainStreamInterceptor(streamAuthInterceptor),
+	)
 	reflection.Register(grpcServer)
 	watcherSvc := watcher.NewManagerService(db, db, db, logger)
 	redirectionSvc := redirection.NewRedirectionService(db, db, db, logger)
@@ -74,7 +96,7 @@ func NewApp() (*App, error) {
 	pb.RegisterFileFlushServiceServer(grpcServer, flushSvc)
 	pb.RegisterWatcherFilterServiceServer(grpcServer, filterSvc)
 
-	webHandler, err := web.New(watcherSvc, flushSvc, redirectionSvc, filterSvc, oidcCfgFromConfig(cfg))
+	webHandler, err := web.New(watcherSvc, flushSvc, redirectionSvc, filterSvc, oidcCfg)
 	if err != nil {
 		return nil, fmt.Errorf("create web handler: %w", err)
 	}
@@ -157,13 +179,15 @@ func oidcCfgFromConfig(cfg *config.Config) web.OIDCConfig {
 	enabled, _ := cfg.Bool("oidc.enabled")
 	issuer, _ := cfg.String("oidc.issuer")
 	clientID, _ := cfg.String("oidc.client-id")
+	deviceClientID, _ := cfg.String("oidc.device-client-id")
 	clientSecret, _ := cfg.String("oidc.client-secret")
 	redirectURI, _ := cfg.String("oidc.redirect-uri")
 	return web.OIDCConfig{
-		Enabled:      enabled,
-		Issuer:       issuer,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		RedirectURI:  redirectURI,
+		Enabled:        enabled,
+		Issuer:         issuer,
+		ClientID:       clientID,
+		ClientSecret:   clientSecret,
+		DeviceClientID: deviceClientID,
+		RedirectURI:    redirectURI,
 	}
 }

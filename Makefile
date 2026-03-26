@@ -22,8 +22,20 @@ PLIST_DEST        := $(LAUNCH_AGENTS_DIR)/$(PLIST_LABEL).plist
 
 IOS_GEN_DIR := tiny-file-watcher-app/tiny-file-watcher-app/Generated
 
-.PHONY: all install-tools generate generate-swift build build-client build-all install test lint clean \
+.PHONY: all help install-tools generate build build-client build-all install test lint clean \
         install-service uninstall-service enable-service disable-service
+
+## help: list all available make rules with descriptions
+help:
+	@echo "Usage: make <rule>"
+	@echo ""
+	@awk '/^## [a-zA-Z]/ { \
+		split($$0, a, ": "); \
+		rule = substr(a[1], 4); \
+		desc = a[2]; \
+		for (i = 3; i <= length(a); i++) desc = desc ": " a[i]; \
+		printf "  %-20s %s\n", rule, desc \
+	}' $(MAKEFILE_LIST)
 
 all: generate build
 
@@ -41,18 +53,6 @@ generate: $(PROTO_FILE) | $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_GRPC)
 		--go_out=$(GEN_DIR) --go_opt=paths=source_relative \
 		--go-grpc_out=$(GEN_DIR) --go-grpc_opt=paths=source_relative \
 		$(PROTO_FILE)
-
-## generate-swift: regenerate Swift proto stubs for the iOS app from .proto file
-## Requires: brew install swift-protobuf protoc-gen-grpc-swift
-generate-swift: $(PROTO_FILE)
-	@mkdir -p $(IOS_GEN_DIR)
-	@protoc \
-		--proto_path=$(PROTO_DIR) \
-		--swift_out=$(IOS_GEN_DIR) \
-		--grpc-swift-2_out=$(IOS_GEN_DIR) \
-		--plugin=protoc-gen-grpc-swift-2=/opt/homebrew/bin/protoc-gen-grpc-swift-2 \
-		$(PROTO_FILE)
-	@echo "Swift stubs regenerated in $(IOS_GEN_DIR)"
 
 ## build: compile the server binary (tfws)
 build: generate build-client build-server

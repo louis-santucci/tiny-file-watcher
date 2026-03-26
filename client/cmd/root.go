@@ -39,6 +39,7 @@ func init() {
 	rootCmd.AddCommand(filterCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
+	rootCmd.AddCommand(syncWatcherCmd)
 }
 
 func dial() error {

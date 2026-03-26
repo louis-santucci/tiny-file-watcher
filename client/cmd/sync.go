@@ -29,13 +29,13 @@ var syncWatcherCmd = &cobra.Command{
 		if len(resp.AddedFiles) > 0 {
 			fmt.Println("  Added files:")
 			for _, f := range resp.AddedFiles {
-				fmt.Printf("    + %s\n", f)
+				fmt.Printf("    + %s\n", shortenPath(f, 40))
 			}
 		}
 		if len(resp.RemovedFiles) > 0 {
 			fmt.Println("  Removed files:")
 			for _, f := range resp.RemovedFiles {
-				fmt.Printf("    - %s\n", f)
+				fmt.Printf("    - %s\n", shortenPath(f, 40))
 			}
 		}
 		return nil

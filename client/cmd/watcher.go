@@ -33,7 +33,7 @@ func init() {
 		createWatcherCmd,
 		updateWatcherCmd,
 		deleteWatcherCmd,
-		toggleWatcherCmd,
+		syncWatcherCmd,
 	)
 }
 
@@ -163,44 +163,52 @@ var deleteWatcherCmd = &cobra.Command{
 	},
 }
 
-var toggleWatcherCmd = &cobra.Command{
-	Use:   "toggle <name>",
-	Short: "Enable or disable a watcher",
+var syncWatcherCmd = &cobra.Command{
+	Use:   "sync <name>",
+	Short: "Sync a watcher by scanning its source directory",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		svc := pb.NewFileWatcherServiceClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		w, err := svc.ToggleWatcher(ctx, &pb.ToggleWatcherRequest{Name: args[0]})
+		resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: args[0]})
 		if err != nil {
 			return err
 		}
 
-		state := "disabled"
-		if w.Enabled {
-			state = "enabled"
+		fmt.Printf("Sync complete for watcher %q:\n", args[0])
+		fmt.Printf("  Added:   %d file(s)\n", resp.AddedCount)
+		fmt.Printf("  Removed: %d file(s)\n", resp.RemovedCount)
+		if len(resp.AddedFiles) > 0 {
+			fmt.Println("  Added files:")
+			for _, f := range resp.AddedFiles {
+				fmt.Printf("    + %s\n", f)
+			}
 		}
-		fmt.Printf("Watcher %q is now %s.\n", w.Name, state)
-		printWatchers([]*pb.Watcher{w})
+		if len(resp.RemovedFiles) > 0 {
+			fmt.Println("  Removed files:")
+			for _, f := range resp.RemovedFiles {
+				fmt.Printf("    - %s\n", f)
+			}
+		}
 		return nil
 	},
 }
 
 func printWatchers(watchers []*pb.Watcher) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tNAME\tSOURCE PATH\tENABLED\tCREATED AT")
-	fmt.Fprintln(w, "--\t----\t-----------\t-------\t----------")
+	fmt.Fprintln(w, "ID\tNAME\tSOURCE PATH\tCREATED AT")
+	fmt.Fprintln(w, "--\t----\t-----------\t----------")
 	for _, watcher := range watchers {
 		created := "-"
 		if watcher.CreatedAt != nil {
 			created = watcher.CreatedAt.AsTime().Format(time.DateTime)
 		}
-		fmt.Fprintf(w, "%d\t%s\t%s\t%v\t%s\n",
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\n",
 			watcher.Id,
 			watcher.Name,
 			watcher.SourcePath,
-			watcher.Enabled,
 			created,
 		)
 	}

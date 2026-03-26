@@ -28,3 +28,11 @@ func (m *MockFileRepository) FlushWatchedFiles(ids []int64) error {
 	args := m.Called(ids)
 	return args.Error(0)
 }
+
+func (m *MockFileRepository) ListWatchedFiles(watcherName string) ([]*database.WatchedFile, error) {
+	args := m.Called(watcherName)
+	if v := args.Get(0); v != nil {
+		return v.([]*database.WatchedFile), args.Error(1)
+	}
+	return nil, args.Error(1)
+}

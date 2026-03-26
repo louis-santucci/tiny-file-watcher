@@ -7,18 +7,18 @@ import (
 	pb "tiny-file-watcher/gen/grpc"
 )
 
-// handleToggle toggles a watcher on/off and returns an HTMX partial (status badge).
-func (h *Handler) handleToggle(w http.ResponseWriter, r *http.Request) {
+// handleSync triggers a directory sync and returns an HTMX partial (watcher row).
+func (h *Handler) handleSync(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 
-	wt, err := h.watcherSvc.ToggleWatcher(r.Context(), &pb.ToggleWatcherRequest{Name: name})
+	result, err := h.watcherSvc.SyncWatcher(r.Context(), &pb.SyncWatcherRequest{Name: name})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, watcherRowPartial(wt))
+	fmt.Fprint(w, syncResultPartial(name, result))
 }
 
 // handleFlush triggers a flush and returns an HTMX partial (pending files list).
@@ -41,19 +41,14 @@ func (h *Handler) handleFlush(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, pendingFilesPartial(pf.Files))
 }
 
-func watcherRowPartial(wt *pb.Watcher) string {
-	badge, toggleLabel := statusBadge(wt.Enabled)
-	return fmt.Sprintf(`<tr id="watcher-row-%s">
-  <td><a href="/watchers/%s">%s</a></td>
-  <td>%s</td>
-  <td>%s</td>
-  <td>
-    <button hx-post="/watchers/%s/toggle"
-            hx-target="#watcher-row-%s"
-            hx-swap="outerHTML"
-            class="secondary small">%s</button>
-  </td>
-</tr>`, wt.Name, wt.Name, wt.Name, wt.SourcePath, badge, wt.Name, wt.Name, toggleLabel)
+func syncResultPartial(name string, result *pb.SyncWatcherResponse) string {
+	return fmt.Sprintf(`<div id="sync-result-%s">
+  <p>Sync complete: <strong>+%d</strong> added, <strong>-%d</strong> removed.</p>
+  <button hx-post="/watchers/%s/sync"
+          hx-target="#sync-result-%s"
+          hx-swap="outerHTML"
+          class="secondary small">Sync</button>
+</div>`, name, result.AddedCount, result.RemovedCount, name, name)
 }
 
 func pendingFilesPartial(files []*pb.WatchedFile) string {
@@ -66,11 +61,4 @@ func pendingFilesPartial(files []*pb.WatchedFile) string {
 	}
 	out += "</ul>"
 	return out
-}
-
-func statusBadge(enabled bool) (badge, toggleLabel string) {
-	if enabled {
-		return `<span style="color:var(--pico-color-green-550)">● Enabled</span>`, "Disable"
-	}
-	return `<span style="color:var(--pico-color-red-550)">● Disabled</span>`, "Enable"
 }

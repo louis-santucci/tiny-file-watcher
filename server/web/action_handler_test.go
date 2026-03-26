@@ -15,58 +15,57 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// --- handleToggle ---
+// --- handleSync ---
 
-func TestHandleToggle_Success(t *testing.T) {
+func TestHandleSync_Success(t *testing.T) {
 	watcherSvc := &mockWatcherService{}
-	watcherSvc.On("ToggleWatcher", mock.Anything, &pb.ToggleWatcherRequest{Name: "alpha"}).
-		Return(&pb.Watcher{Name: "alpha", SourcePath: "/src/alpha", Enabled: true}, nil)
+	watcherSvc.On("SyncWatcher", mock.Anything, &pb.SyncWatcherRequest{Name: "alpha"}).
+		Return(&pb.SyncWatcherResponse{AddedCount: 3, RemovedCount: 1}, nil)
 
 	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/watchers/alpha/toggle", nil)
+	req := httptest.NewRequest(http.MethodPost, "/watchers/alpha/sync", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Header().Get("Content-Type"), "text/html")
-	assert.Contains(t, w.Body.String(), "alpha")
-	assert.Contains(t, w.Body.String(), "Enabled")
+	assert.Contains(t, w.Body.String(), "3")
+	assert.Contains(t, w.Body.String(), "1")
 	watcherSvc.AssertExpectations(t)
 }
 
-func TestHandleToggle_DisabledWatcher(t *testing.T) {
+func TestHandleSync_NothingChanged(t *testing.T) {
 	watcherSvc := &mockWatcherService{}
-	watcherSvc.On("ToggleWatcher", mock.Anything, &pb.ToggleWatcherRequest{Name: "beta"}).
-		Return(&pb.Watcher{Name: "beta", SourcePath: "/src/beta", Enabled: false}, nil)
+	watcherSvc.On("SyncWatcher", mock.Anything, &pb.SyncWatcherRequest{Name: "beta"}).
+		Return(&pb.SyncWatcherResponse{AddedCount: 0, RemovedCount: 0}, nil)
 
 	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/watchers/beta/toggle", nil)
+	req := httptest.NewRequest(http.MethodPost, "/watchers/beta/sync", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "Disabled")
-	assert.Contains(t, w.Body.String(), "Enable")
+	assert.Contains(t, w.Body.String(), "0")
 }
 
-func TestHandleToggle_ServiceError(t *testing.T) {
+func TestHandleSync_ServiceError(t *testing.T) {
 	watcherSvc := &mockWatcherService{}
-	watcherSvc.On("ToggleWatcher", mock.Anything, mock.Anything).
-		Return(nil, errors.New("toggle failed"))
+	watcherSvc.On("SyncWatcher", mock.Anything, mock.Anything).
+		Return(nil, errors.New("sync failed"))
 
 	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodPost, "/watchers/alpha/toggle", nil)
+	req := httptest.NewRequest(http.MethodPost, "/watchers/alpha/sync", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
-	assert.Contains(t, w.Body.String(), "toggle failed")
+	assert.Contains(t, w.Body.String(), "sync failed")
 }
 
 // --- handleFlush ---

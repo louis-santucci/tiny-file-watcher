@@ -13,9 +13,26 @@ import (
 
 const maxUploadSize = 64 << 20 // 64 MB
 
-// handleUpload saves uploaded files directly into the watcher's source_path.
-// The watcher's fsnotify goroutine will detect the new files and record them.
-// Upload is rejected if the watcher is not enabled.
+// resolveUploadDir returns the absolute destination directory for an upload.
+// folder must be a plain directory name (no slashes, no path traversal).
+// When folder is empty the watcher's source_path is returned as-is.
+func resolveUploadDir(sourcePath, folder string) (string, error) {
+	if folder == "" {
+		return sourcePath, nil
+	}
+	if strings.ContainsAny(folder, `/\`) || folder == ".." {
+		return "", fmt.Errorf("invalid folder: must be a single directory name")
+	}
+	resolved := filepath.Join(sourcePath, folder)
+	if !strings.HasPrefix(resolved, sourcePath) {
+		return "", fmt.Errorf("invalid folder: path traversal detected")
+	}
+	return resolved, nil
+}
+
+// handleUpload saves uploaded files directly into the watcher's source_path (or
+// an optional subfolder). After uploading, call SyncWatcher to record the new
+// files in the database.
 func (h *Handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 
@@ -36,17 +53,24 @@ func (h *Handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "watcher not found", http.StatusNotFound)
 		return
 	}
-	if !wt.Enabled {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprint(w, `<span style="color:var(--pico-color-red-550)">Upload failed: watcher is disabled. Enable the watcher first.</span>`)
-		return
-	}
 
 	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(w, `<span style="color:var(--pico-color-red-550)">Upload failed: %s</span>`, err.Error())
+		return
+	}
+
+	folder := r.FormValue("folder")
+	destDir, err := resolveUploadDir(wt.SourcePath, folder)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, `<span style="color:var(--pico-color-red-550)">Invalid folder: %s</span>`, err.Error())
+		return
+	}
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -69,7 +93,7 @@ func (h *Handler) handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 		defer src.Close()
 
-		destPath := filepath.Join(wt.SourcePath, filepath.Base(fh.Filename))
+		destPath := filepath.Join(destDir, filepath.Base(fh.Filename))
 		dst, err := os.Create(destPath)
 		if err != nil {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")

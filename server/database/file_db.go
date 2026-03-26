@@ -57,6 +57,32 @@ func (db *DB) RemoveWatchedFile(watcherName string, filePath string) error {
 	return err
 }
 
+// ListWatchedFiles returns all unflushed watched files for the given watcher.
+func (db *DB) ListWatchedFiles(watcherName string) ([]*WatchedFile, error) {
+	rows, err := db.conn.Query(
+		`SELECT id, watcher_name, file_path, file_name, flushed, detected_at
+		 FROM watched_files WHERE watcher_name = ? AND flushed = 0`, watcherName)
+	if err != nil {
+		return nil, fmt.Errorf("list watched files: %w", err)
+	}
+	defer rows.Close()
+	var result []*WatchedFile
+	for rows.Next() {
+		var wf WatchedFile
+		var flushedInt int
+		var detectedStr string
+		var fileName string
+		if err := rows.Scan(&wf.ID, &wf.WatcherName, &wf.FilePath, &fileName, &flushedInt, &detectedStr); err != nil {
+			return nil, fmt.Errorf("scan watched file: %w", err)
+		}
+		wf.FilePath = filepath.Join(wf.FilePath, fileName)
+		wf.Flushed = flushedInt == 1
+		wf.DetectedAt, _ = time.Parse(time.RFC3339, detectedStr)
+		result = append(result, &wf)
+	}
+	return result, rows.Err()
+}
+
 func (db *DB) FlushWatchedFiles(ids []int64) error {
 	if len(ids) == 0 {
 		slog.Warn("no files to flush")

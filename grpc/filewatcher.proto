@@ -11,9 +11,8 @@ message Watcher {
   int64 id = 1;
   string name = 2;
   string source_path = 3;
-  bool enabled = 4;
-  google.protobuf.Timestamp created_at = 5;
-  google.protobuf.Timestamp updated_at = 6;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
 }
 
 message FileRedirection {
@@ -138,8 +137,15 @@ message DeleteFilterResponse {
   bool success = 1;
 }
 
-message ToggleWatcherRequest {
+message SyncWatcherRequest {
   string name = 1;
+}
+
+message SyncWatcherResponse {
+  int32 added_count = 1;
+  int32 removed_count = 2;
+  repeated string added_files = 3;
+  repeated string removed_files = 4;
 }
 
 service FileWatcherService {
@@ -149,7 +155,7 @@ service FileWatcherService {
   rpc ListWatchers(ListWatchersRequest)         returns (ListWatchersResponse);
   rpc UpdateWatcher(UpdateWatcherRequest)       returns (Watcher);
   rpc DeleteWatcher(DeleteWatcherRequest)       returns (DeleteWatcherResponse);
-  rpc ToggleWatcher(ToggleWatcherRequest)       returns (Watcher);
+  rpc SyncWatcher(SyncWatcherRequest)           returns (SyncWatcherResponse);
 }
 
 service FileFlushService {

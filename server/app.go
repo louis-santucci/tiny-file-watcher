@@ -28,7 +28,6 @@ import (
 type App struct {
 	config     *config.Config
 	db         *database.DB
-	mgr        *watcher.Manager
 	grpcServer *grpc.Server
 	grpcAddr   string
 	webHandler *web.Handler
@@ -64,25 +63,9 @@ func NewApp() (*App, error) {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	mgr := watcher.NewManager(db, db, logger)
-
-	// Resume any watchers that were enabled before the last shutdown.
-	enabled, err := db.ListEnabledWatchers()
-	if err != nil {
-		return nil, fmt.Errorf("list enabled watchers: %w", err)
-	}
-	for _, w := range enabled {
-		key := watcher.WatcherKey{Id: w.ID, Name: w.Name}
-		if err := mgr.Start(key, w.SourcePath); err != nil {
-			log.Printf("warn: could not resume watcher %s (id %d) (%s): %v", w.Name, w.ID, w.SourcePath, err)
-		} else {
-			log.Printf("resumed watcher %s (id %d) → %s", w.Name, w.ID, w.SourcePath)
-		}
-	}
-
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(interceptor.UnaryLoggingInterceptor))
 	reflection.Register(grpcServer)
-	watcherSvc := watcher.NewManagerService(db, db, mgr, logger)
+	watcherSvc := watcher.NewManagerService(db, db, db, logger)
 	redirectionSvc := redirection.NewRedirectionService(db, db, db, logger)
 	flushSvc := flush.NewFlushService(db, logger)
 	filterSvc := filter.NewFilterService(db, logger)
@@ -99,7 +82,6 @@ func NewApp() (*App, error) {
 	return &App{
 		config:     cfg,
 		db:         db,
-		mgr:        mgr,
 		grpcServer: grpcServer,
 		grpcAddr:   grpcAddr,
 		webHandler: webHandler,

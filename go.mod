@@ -4,7 +4,6 @@ go 1.25.0
 
 require (
 	github.com/coreos/go-oidc/v3 v3.17.0
-	github.com/fsnotify/fsnotify v1.9.0
 	github.com/fullstorydev/grpcui v1.4.3
 	github.com/ridgelines/go-config v0.0.0-20221109193159-0ab1ea9ffd6e
 	github.com/spf13/cobra v1.10.2

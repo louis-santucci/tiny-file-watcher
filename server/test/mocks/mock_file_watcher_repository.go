@@ -55,19 +55,3 @@ func (m *MockFileWatcherRepository) DeleteWatcher(name string) error {
 	args := m.Called(name)
 	return args.Error(0)
 }
-
-func (m *MockFileWatcherRepository) ToggleWatcher(name string) (*database.FileWatcher, error) {
-	args := m.Called(name)
-	if v := args.Get(0); v != nil {
-		return v.(*database.FileWatcher), args.Error(1)
-	}
-	return nil, args.Error(1)
-}
-
-func (m *MockFileWatcherRepository) ListEnabledWatchers() ([]*database.FileWatcher, error) {
-	args := m.Called()
-	if v := args.Get(0); v != nil {
-		return v.([]*database.FileWatcher), args.Error(1)
-	}
-	return nil, args.Error(1)
-}

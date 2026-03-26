@@ -5,23 +5,13 @@
   <p>{{.Watcher.SourcePath}}</p>
 </hgroup>
 
-{{$badge := "● Disabled"}}
-{{$color := "var(--pico-color-red-550)"}}
-{{$toggleLabel := "Enable"}}
-{{if .Watcher.Enabled}}
-  {{$badge = "● Enabled"}}
-  {{$color = "var(--pico-color-green-550)"}}
-  {{$toggleLabel = "Disable"}}
-{{end}}
-
 <div class="grid">
-  <p><strong>Status:</strong> <span style="color:{{$color}}">{{$badge}}</span></p>
   <p>
-    <button hx-post="/watchers/{{.Watcher.Name}}/toggle"
-            hx-target="#status-badge"
-            hx-swap="outerHTML"
-            class="secondary small">{{$toggleLabel}} watcher</button>
-    <span id="status-badge" style="color:{{$color}}">{{$badge}}</span>
+    <button hx-post="/watchers/{{.Watcher.Name}}/sync"
+            hx-target="#sync-result"
+            hx-swap="innerHTML"
+            class="secondary small">Sync directory</button>
+    <span id="sync-result"></span>
   </p>
 </div>
 
@@ -91,7 +81,6 @@
 <hr/>
 
 <h4>Upload files</h4>
-{{if .Watcher.Enabled}}
 <form hx-post="/watchers/{{.Watcher.Name}}/upload"
       hx-encoding="multipart/form-data"
       hx-target="#upload-result"
@@ -100,9 +89,6 @@
   <button type="submit">Upload</button>
 </form>
 <div id="upload-result"></div>
-{{else}}
-<p><em>Enable the watcher to upload files.</em></p>
-{{end}}
 
 <p><a href="/watchers">← Back to watchers</a></p>
 {{end}}

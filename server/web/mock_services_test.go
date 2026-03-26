@@ -21,12 +21,12 @@ func (m *mockWatcherService) ListWatchers(ctx context.Context, req *pb.ListWatch
 	return args.Get(0).(*pb.ListWatchersResponse), args.Error(1)
 }
 
-func (m *mockWatcherService) ToggleWatcher(ctx context.Context, req *pb.ToggleWatcherRequest) (*pb.Watcher, error) {
+func (m *mockWatcherService) SyncWatcher(ctx context.Context, req *pb.SyncWatcherRequest) (*pb.SyncWatcherResponse, error) {
 	args := m.Called(ctx, req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*pb.Watcher), args.Error(1)
+	return args.Get(0).(*pb.SyncWatcherResponse), args.Error(1)
 }
 
 // mockFlushService implements flushService.

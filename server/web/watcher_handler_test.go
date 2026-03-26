@@ -20,8 +20,8 @@ func TestHandleDashboard_Success(t *testing.T) {
 	flushSvc := &mockFlushService{}
 
 	watchers := []*pb.Watcher{
-		{Name: "alpha", SourcePath: "/src/alpha", Enabled: true},
-		{Name: "beta", SourcePath: "/src/beta", Enabled: false},
+		{Name: "alpha", SourcePath: "/src/alpha"},
+		{Name: "beta", SourcePath: "/src/beta"},
 	}
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(&pb.ListWatchersResponse{Watchers: watchers}, nil)
@@ -65,7 +65,7 @@ func TestHandleDashboard_PendingFilesErrorIsIgnored(t *testing.T) {
 	flushSvc := &mockFlushService{}
 
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
-		Return(&pb.ListWatchersResponse{Watchers: []*pb.Watcher{{Name: "alpha", Enabled: true}}}, nil)
+		Return(&pb.ListWatchersResponse{Watchers: []*pb.Watcher{{Name: "alpha"}}}, nil)
 	// ListPendingFiles returns an error — the handler should silently skip it.
 	flushSvc.On("ListPendingFiles", mock.Anything, mock.Anything).
 		Return(nil, errors.New("flush unavailable"))
@@ -85,8 +85,8 @@ func TestHandleDashboard_PendingFilesErrorIsIgnored(t *testing.T) {
 func TestHandleWatcherList_Success(t *testing.T) {
 	watcherSvc := &mockWatcherService{}
 	watchers := []*pb.Watcher{
-		{Name: "alpha", SourcePath: "/src/alpha", Enabled: true},
-		{Name: "beta", SourcePath: "/src/beta", Enabled: false},
+		{Name: "alpha", SourcePath: "/src/alpha"},
+		{Name: "beta", SourcePath: "/src/beta"},
 	}
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(&pb.ListWatchersResponse{Watchers: watchers}, nil)
@@ -127,7 +127,7 @@ func TestHandleWatcherDetail_Success(t *testing.T) {
 	redirectSvc := &mockRedirectionService{}
 	filterSvc := &mockFilterService{}
 
-	watchers := []*pb.Watcher{{Name: "alpha", SourcePath: "/src/alpha", Enabled: true}}
+	watchers := []*pb.Watcher{{Name: "alpha", SourcePath: "/src/alpha"}}
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(&pb.ListWatchersResponse{Watchers: watchers}, nil)
 

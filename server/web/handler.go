@@ -19,7 +19,7 @@ var templateFS embed.FS
 // unexported mustEmbed methods in the generated gRPC server interfaces.
 type watcherService interface {
 	ListWatchers(context.Context, *pb.ListWatchersRequest) (*pb.ListWatchersResponse, error)
-	ToggleWatcher(context.Context, *pb.ToggleWatcherRequest) (*pb.Watcher, error)
+	SyncWatcher(context.Context, *pb.SyncWatcherRequest) (*pb.SyncWatcherResponse, error)
 }
 
 type flushService interface {
@@ -97,7 +97,7 @@ func New(
 	h.mux.HandleFunc("GET /{$}", h.requireAuth(h.handleDashboard))
 	h.mux.HandleFunc("GET /watchers", h.requireAuth(h.handleWatcherList))
 	h.mux.HandleFunc("GET /watchers/{name}", h.requireAuth(h.handleWatcherDetail))
-	h.mux.HandleFunc("POST /watchers/{name}/toggle", h.requireAuth(h.handleToggle))
+	h.mux.HandleFunc("POST /watchers/{name}/sync", h.requireAuth(h.handleSync))
 	h.mux.HandleFunc("POST /watchers/{name}/flush", h.requireAuth(h.handleFlush))
 	h.mux.HandleFunc("POST /watchers/{name}/upload", h.requireAuth(h.handleUpload))
 

@@ -10,8 +10,6 @@ type FileWatcherRepository interface {
 	ListWatchers() ([]*database.FileWatcher, error)
 	UpdateWatcher(id int64, name *string, sourcePath *string) (*database.FileWatcher, error)
 	DeleteWatcher(name string) error
-	ToggleWatcher(name string) (*database.FileWatcher, error)
-	ListEnabledWatchers() ([]*database.FileWatcher, error)
 }
 
 // Compile-time assertion: *database.DB must satisfy FileWatcherRepository.

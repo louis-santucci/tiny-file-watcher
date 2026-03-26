@@ -351,8 +351,8 @@ func TestSyncWatcher_EmptyDir_NoFilesInDB(t *testing.T) {
 	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
 
 	assert.NoError(t, err)
-	assert.Equal(t, int32(0), resp.AddedCount)
-	assert.Equal(t, int32(0), resp.RemovedCount)
+	assert.Equal(t, int64(0), resp.AddedCount)
+	assert.Equal(t, int64(0), resp.RemovedCount)
 	fileWatcherRepo.AssertExpectations(t)
 	fileRepo.AssertExpectations(t)
 }
@@ -381,8 +381,8 @@ func TestSyncWatcher_NewFilesAdded(t *testing.T) {
 	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
 
 	assert.NoError(t, err)
-	assert.Equal(t, int32(2), resp.AddedCount)
-	assert.Equal(t, int32(0), resp.RemovedCount)
+	assert.Equal(t, int64(2), resp.AddedCount)
+	assert.Equal(t, int64(0), resp.RemovedCount)
 	fileRepo.AssertExpectations(t)
 }
 
@@ -407,8 +407,8 @@ func TestSyncWatcher_RemovedFiles(t *testing.T) {
 	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
 
 	assert.NoError(t, err)
-	assert.Equal(t, int32(0), resp.AddedCount)
-	assert.Equal(t, int32(1), resp.RemovedCount)
+	assert.Equal(t, int64(0), resp.AddedCount)
+	assert.Equal(t, int64(1), resp.RemovedCount)
 	assert.Equal(t, []string{ghost}, resp.RemovedFiles)
 	fileRepo.AssertExpectations(t)
 }
@@ -438,7 +438,7 @@ func TestSyncWatcher_FilterApplied(t *testing.T) {
 	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
 
 	assert.NoError(t, err)
-	assert.Equal(t, int32(1), resp.AddedCount)
+	assert.Equal(t, int64(1), resp.AddedCount)
 	fileRepo.AssertExpectations(t)
 	fileRepo.AssertNotCalled(t, "AddWatchedFile", "w", rejected, true)
 }
@@ -482,8 +482,8 @@ func TestSyncWatcher_AlreadyInDB_NotReAdded(t *testing.T) {
 	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
 
 	assert.NoError(t, err)
-	assert.Equal(t, int32(0), resp.AddedCount)
-	assert.Equal(t, int32(0), resp.RemovedCount)
+	assert.Equal(t, int64(0), resp.AddedCount)
+	assert.Equal(t, int64(0), resp.RemovedCount)
 	fileRepo.AssertNotCalled(t, "AddWatchedFile", mock.Anything, mock.Anything, mock.Anything)
 }
 
@@ -513,7 +513,7 @@ func TestSyncWatcher_FlushExistingTrue_FilesAddedAsPending(t *testing.T) {
 	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
 
 	assert.NoError(t, err)
-	assert.Equal(t, int32(0), resp.AddedCount)
+	assert.Equal(t, int64(0), resp.AddedCount)
 	fileRepo.AssertExpectations(t)
 }
 
@@ -537,7 +537,7 @@ func TestSyncWatcher_FlushExistingFalse_FilesAddedAsFlushed(t *testing.T) {
 	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
 
 	assert.NoError(t, err)
-	assert.Equal(t, int32(1), resp.AddedCount)
+	assert.Equal(t, int64(1), resp.AddedCount)
 	fileRepo.AssertExpectations(t)
 }
 

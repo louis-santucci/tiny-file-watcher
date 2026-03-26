@@ -53,13 +53,13 @@ func (s *WatcherService) CreateWatcher(_ context.Context, req *pb.CreateWatcherR
 		}
 	}
 	if req.FlushExisting {
-		s.flushExistingFiles(w, filters, s.fileRepository, s.logger)
+		s.AddExistingFiles(w, filters, s.fileRepository, s.logger)
 	}
 
 	return toProto(w), nil
 }
 
-func (s *WatcherService) flushExistingFiles(w *database.FileWatcher, filters []*database.WatcherFilter, fileRepo FileRepository, logger *slog.Logger) {
+func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, filters []*database.WatcherFilter, fileRepo FileRepository, logger *slog.Logger) {
 	queue := []string{w.SourcePath}
 	for len(queue) > 0 {
 		current := queue[0]
@@ -80,9 +80,29 @@ func (s *WatcherService) flushExistingFiles(w *database.FileWatcher, filters []*
 				if _, err := s.fileRepository.AddWatchedFile(w.Name, fullPath, true); err != nil {
 					s.logger.Error("create watcher: error adding file", "watcher", w.Name, "path", fullPath, "err", err)
 				}
+				s.logger.Debug("create watcher: adding file", "watcher", w.Name, "path", fullPath, "flushed", true)
 			}
 		}
 	}
+}
+
+func (s *WatcherService) ListWatchedFiles(_ context.Context, req *pb.ListWatchedFilesRequest) (*pb.ListWatchedFilesResponse, error) {
+	if req.WatcherName == "" {
+		return nil, status.Error(codes.InvalidArgument, "watcher_name is required")
+	}
+	files, err := s.fileRepository.ListWatchedFiles(req.WatcherName)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list watched files: %v", err)
+	}
+	resp := &pb.ListWatchedFilesResponse{}
+	for _, f := range files {
+		resp.Files = append(resp.Files, &pb.WatchedFile{
+			FilePath:   f.FilePath,
+			Flushed:    f.Flushed,
+			DetectedAt: timestamppb.New(f.DetectedAt),
+		})
+	}
+	return resp, nil
 }
 
 func (s *WatcherService) GetWatcherById(_ context.Context, req *pb.GetWatcherByIdRequest) (*pb.Watcher, error) {
@@ -192,9 +212,10 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 		if exists := dbEntries.Contains(path); !exists {
 			if _, err := s.fileRepository.AddWatchedFile(req.Name, path, false); err != nil {
 				s.logger.Error("sync: error adding file", "watcher", req.Name, "path", path, "err", err)
-			} else {
-				addedFiles = append(addedFiles, path)
+				continue
 			}
+			addedFiles = append(addedFiles, path)
+			s.logger.Debug("sync: added file", "watcher", req.Name, "path", path, "flushed", false)
 		}
 	}
 
@@ -205,17 +226,17 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 		if exists := onDisk.Contains(path); !exists {
 			if err := s.fileRepository.RemoveWatchedFile(req.Name, path); err != nil {
 				s.logger.Error("sync: error removing file", "watcher", req.Name, "path", path, "err", err)
-			} else {
-				removedFiles = append(removedFiles, path)
+				continue
 			}
+			removedFiles = append(removedFiles, path)
 		}
 	}
 
 	s.logger.Info("sync complete", "watcher", req.Name, "added", len(addedFiles), "removed", len(removedFiles))
 
 	return &pb.SyncWatcherResponse{
-		AddedCount:   int32(len(addedFiles)),
-		RemovedCount: int32(len(removedFiles)),
+		AddedCount:   int64(len(addedFiles)),
+		RemovedCount: int64(len(removedFiles)),
 		AddedFiles:   addedFiles,
 		RemovedFiles: removedFiles,
 	}, nil

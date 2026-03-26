@@ -19,6 +19,8 @@ var watcherCmd = &cobra.Command{
 	Short:   "Manage file watchers",
 }
 
+var watchedFilsShowPath bool
+
 func init() {
 	// create
 	createWatcherCmd.Flags().StringP("path", "p", "", "Source path to watch (required)")
@@ -34,7 +36,10 @@ func init() {
 	updateWatcherCmd.Flags().String("name", "", "New name for the watcher")
 	updateWatcherCmd.Flags().String("path", "", "New source path for the watcher")
 
+	listWatcherFilesCmd.Flags().BoolVarP(&watchedFilsShowPath, "show-path", "p", false, "Show the full file path column in the output table")
+
 	watcherCmd.AddCommand(
+		listWatcherFilesCmd,
 		listWatchersCmd,
 		getWatcherCmd,
 		createWatcherCmd,
@@ -42,6 +47,25 @@ func init() {
 		deleteWatcherCmd,
 		syncWatcherCmd,
 	)
+}
+
+var listWatcherFilesCmd = &cobra.Command{
+	Use:   "files <watcher-name>",
+	Short: "List all files tracked by a watcher",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		svc := pb.NewFileWatcherServiceClient(conn)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		resp, err := svc.ListWatchedFiles(ctx, &pb.ListWatchedFilesRequest{WatcherName: args[0]})
+		if err != nil {
+			return err
+		}
+
+		printWatchedFiles(resp.Files, watchedFilsShowPath)
+		return nil
+	},
 }
 
 var listWatchersCmd = &cobra.Command{
@@ -91,36 +115,34 @@ var createWatcherCmd = &cobra.Command{
 		filters, _ := cmd.Flags().GetStringArray("filter")
 
 		watcherSvc := pb.NewFileWatcherServiceClient(conn)
-		watcherFilterSvc := pb.NewWatcherFilterServiceClient(conn)
-
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		w, err := watcherSvc.CreateWatcher(ctx, &pb.CreateWatcherRequest{
-			Name:          args[0],
-			SourcePath:    path,
-			FlushExisting: flushExisting,
-		})
-		if err != nil {
-			return err
-		}
-
+		var filterRequests []*pb.AddFilterRequest = make([]*pb.AddFilterRequest, 0, len(filters))
 		if len(filters) > 0 {
 			for _, f := range filters {
 				parts := strings.SplitN(f, ":", 3)
 				if len(parts) != 3 {
 					return fmt.Errorf("invalid filter format: %q", f)
 				}
-				_, err = watcherFilterSvc.AddFilter(ctx, &pb.AddFilterRequest{
-					WatcherName: w.Name,
+				filterRequest := &pb.AddFilterRequest{
+					WatcherName: args[0],
 					RuleType:    parts[0],
 					PatternType: parts[1],
 					Pattern:     parts[2],
-				})
-				if err != nil {
-					return fmt.Errorf("add filter %q: %w", f, err)
 				}
+				filterRequests = append(filterRequests, filterRequest)
 			}
+		}
+
+		w, err := watcherSvc.CreateWatcher(ctx, &pb.CreateWatcherRequest{
+			Name:          args[0],
+			SourcePath:    path,
+			FlushExisting: flushExisting,
+			Filters:       filterRequests,
+		})
+		if err != nil {
+			return err
 		}
 
 		fmt.Println("Watcher created:")
@@ -224,6 +246,43 @@ var syncWatcherCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+func printWatchedFiles(files []*pb.WatchedFile, showPath bool) {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+
+	if showPath {
+		fmt.Fprintln(w, "FILE PATH\tFLUSHED\tDETECTED AT")
+		fmt.Fprintln(w, "---------\t-------\t-----------")
+	} else {
+		fmt.Fprintln(w, "FILE NAME\tFLUSHED\tDETECTED AT")
+		fmt.Fprintln(w, "---------\t-------\t-----------")
+	}
+	for _, f := range files {
+		detected := "-"
+		if f.DetectedAt != nil {
+			detected = f.DetectedAt.AsTime().Format(time.DateTime)
+		}
+		// get file name from file path
+		if showPath {
+			fmt.Fprintf(w, "%s\t%t\t%s\n",
+				f.FilePath,
+				f.Flushed,
+				detected,
+			)
+			continue
+		}
+		fileName := f.FilePath
+		if idx := strings.LastIndex(f.FilePath, string(os.PathSeparator)); idx != -1 {
+			fileName = f.FilePath[idx+1:]
+		}
+		fmt.Fprintf(w, "%s\t%t\t%s\n",
+			fileName,
+			f.Flushed,
+			detected,
+		)
+	}
+	w.Flush()
 }
 
 func printWatchers(watchers []*pb.Watcher) {

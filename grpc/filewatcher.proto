@@ -109,18 +109,18 @@ message FlushWatcherResponse {
 }
 
 message WatcherFilter {
-  int64  id           = 1;
+  int64  id = 1;
   string watcher_name = 2;
-  string rule_type    = 3; // "include" or "exclude"
+  string rule_type = 3; // "include" or "exclude"
   string pattern_type = 4; // "extension", "name", or "glob"
-  string pattern      = 5;
+  string pattern = 5;
 }
 
 message AddFilterRequest {
   string watcher_name = 1;
-  string rule_type    = 2;
+  string rule_type = 2;
   string pattern_type = 3;
-  string pattern      = 4;
+  string pattern = 4;
 }
 
 message ListFiltersRequest {
@@ -144,10 +144,18 @@ message SyncWatcherRequest {
 }
 
 message SyncWatcherResponse {
-  int32 added_count = 1;
-  int32 removed_count = 2;
+  int64 added_count = 1;
+  int64 removed_count = 2;
   repeated string added_files = 3;
   repeated string removed_files = 4;
+}
+
+message ListWatchedFilesRequest {
+  string watcher_name = 1;
+}
+
+message ListWatchedFilesResponse {
+  repeated WatchedFile files = 1;
 }
 
 service FileWatcherService {
@@ -155,6 +163,7 @@ service FileWatcherService {
   rpc GetWatcherById(GetWatcherByIdRequest)     returns (Watcher);
   rpc GetWatcherByName(GetWatcherByNameRequest) returns (Watcher);
   rpc ListWatchers(ListWatchersRequest)         returns (ListWatchersResponse);
+  rpc ListWatchedFiles(ListWatchedFilesRequest) returns (ListWatchedFilesResponse);
   rpc UpdateWatcher(UpdateWatcherRequest)       returns (Watcher);
   rpc DeleteWatcher(DeleteWatcherRequest)       returns (DeleteWatcherResponse);
   rpc SyncWatcher(SyncWatcherRequest)           returns (SyncWatcherResponse);

@@ -68,6 +68,12 @@ func (db *DB) ListMachines() ([]*Machine, error) {
 	return result, rows.Err()
 }
 
+// DeleteMachine deletes a machine by name.
+func (db *DB) DeleteMachine(name string) error {
+	_, err := db.conn.Exec(`DELETE FROM machines WHERE name = ?`, name)
+	return err
+}
+
 func scanMachine(s scanner) (*Machine, error) {
 	var m Machine
 	var createdStr, updatedStr string

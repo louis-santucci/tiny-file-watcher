@@ -8,6 +8,7 @@ type MachineRepository interface {
 	GetMachineByName(name string) (*database.Machine, error)
 	GetMachineByToken(token string) (*database.Machine, error)
 	ListMachines() ([]*database.Machine, error)
+	DeleteMachine(name string) error
 }
 
 // Compile-time assertion: *database.DB must satisfy MachineRepository.

@@ -42,3 +42,8 @@ func (m *MockMachineRepository) ListMachines() ([]*database.Machine, error) {
 	}
 	return nil, args.Error(1)
 }
+
+func (m *MockMachineRepository) DeleteMachine(name string) error {
+	args := m.Called(name)
+	return args.Error(0)
+}

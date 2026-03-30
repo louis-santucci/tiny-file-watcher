@@ -175,6 +175,14 @@ message MachineResponse {
   google.protobuf.Timestamp updated_at = 4;
 }
 
+message DeleteMachineResponse {
+  bool success = 1;
+}
+
+message DeleteMachineRequest {
+  string name = 1;
+}
+
 message GetMachinesResponse {
   repeated MachineResponse machines = 1;
 }
@@ -183,7 +191,8 @@ message EmptyRequest {}
 
 service MachineService {
   rpc CreateMachine(InitializeMachineRequest) returns (MachineResponse);
-  rpc GetMachines(EmptyRequest)              returns (GetMachinesResponse);
+  rpc GetMachines(EmptyRequest)               returns (GetMachinesResponse);
+  rpc DeleteMachine(DeleteMachineRequest)     returns (DeleteMachineResponse);
 }
 
 service FileWatcherService {

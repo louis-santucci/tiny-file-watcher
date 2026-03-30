@@ -50,6 +50,17 @@ func (s *MachineService) GetMachines(_ context.Context, _ *pb.EmptyRequest) (*pb
 	return resp, nil
 }
 
+func (s *MachineService) DeleteMachine(_ context.Context, req *pb.DeleteMachineRequest) (*pb.DeleteMachineResponse, error) {
+	if req.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	if err := s.repo.DeleteMachine(req.Name); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete machine: %v", err)
+	}
+	s.logger.Info("machine deleted", "name", req.Name)
+	return &pb.DeleteMachineResponse{Success: true}, nil
+}
+
 func toProto(m *database.Machine) *pb.MachineResponse {
 	return &pb.MachineResponse{
 		Token:     m.Token,

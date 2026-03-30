@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	clientmachine "tiny-file-watcher/client/machine"
 	pb "tiny-file-watcher/gen/grpc"
 
 	"github.com/spf13/cobra"
@@ -20,6 +21,7 @@ var watcherCmd = &cobra.Command{
 }
 
 var watchedFilsShowPath bool
+var listWatchersAllMachines bool
 
 func init() {
 	// create
@@ -37,6 +39,7 @@ func init() {
 	updateWatcherCmd.Flags().String("path", "", "New source path for the watcher")
 
 	listWatcherFilesCmd.Flags().BoolVarP(&watchedFilsShowPath, "show-path", "p", false, "Show the full file path column in the output table")
+	listWatchersCmd.Flags().BoolVarP(&listWatchersAllMachines, "all", "a", false, "List watchers from all machines (default: current machine only)")
 
 	watcherCmd.AddCommand(
 		listWatcherFilesCmd,
@@ -76,7 +79,17 @@ var listWatchersCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		resp, err := svc.ListWatchers(ctx, &pb.ListWatchersRequest{})
+		req := &pb.ListWatchersRequest{}
+		if !listWatchersAllMachines {
+			machineName, err := clientmachine.LoadMachineName()
+			if err == nil {
+				req.MachineName = &machineName
+			} else {
+				fmt.Fprintln(os.Stderr, "note: machine not initialized, listing watchers from all machines (run 'tfw machine init' to associate a machine)")
+			}
+		}
+
+		resp, err := svc.ListWatchers(ctx, req)
 		if err != nil {
 			return err
 		}
@@ -114,6 +127,11 @@ var createWatcherCmd = &cobra.Command{
 		flushExisting, _ := cmd.Flags().GetBool("flush-existing")
 		filters, _ := cmd.Flags().GetStringArray("filter")
 
+		machineName, err := clientmachine.LoadMachineName()
+		if err != nil {
+			return fmt.Errorf("could not determine current machine: %w\nRun 'tfw machine init <name>' first", err)
+		}
+
 		watcherSvc := pb.NewFileWatcherServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -140,6 +158,7 @@ var createWatcherCmd = &cobra.Command{
 			SourcePath:    path,
 			FlushExisting: flushExisting,
 			Filters:       filterRequests,
+			MachineName:   machineName,
 		})
 		if err != nil {
 			return err
@@ -254,16 +273,17 @@ func printWatchedFiles(files []*pb.WatchedFile, showPath bool) {
 
 func printWatchers(watchers []*pb.Watcher) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tNAME\tSOURCE PATH\tCREATED AT")
-	fmt.Fprintln(w, "--\t----\t-----------\t----------")
+	fmt.Fprintln(w, "ID\tNAME\tMACHINE\tSOURCE PATH\tCREATED AT")
+	fmt.Fprintln(w, "--\t----\t-------\t-----------\t----------")
 	for _, watcher := range watchers {
 		created := "-"
 		if watcher.CreatedAt != nil {
 			created = watcher.CreatedAt.AsTime().Format(time.DateTime)
 		}
-		fmt.Fprintf(w, "%d\t%s\t%s\t%s\n",
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n",
 			watcher.Id,
 			watcher.Name,
+			watcher.MachineName,
 			watcher.SourcePath,
 			created,
 		)

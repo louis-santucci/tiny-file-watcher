@@ -30,10 +30,14 @@ func TestIntegration_WatcherLifecycle(t *testing.T) {
 	db := newDB(t)
 	srcDir := t.TempDir()
 
-	w, err := db.CreateWatcher("lifecycle-watcher", srcDir)
+	_, err := db.CreateMachine("test-machine", "hw-id-lifecycle")
+	require.NoError(t, err)
+
+	w, err := db.CreateWatcher("lifecycle-watcher", srcDir, "test-machine")
 	require.NoError(t, err)
 	assert.Equal(t, "lifecycle-watcher", w.Name)
 	assert.Equal(t, srcDir, w.SourcePath)
+	assert.Equal(t, "test-machine", w.MachineName)
 
 	// Update the watcher source path.
 	newPath := t.TempDir()
@@ -53,7 +57,10 @@ func TestIntegration_ListWatchedFiles(t *testing.T) {
 	db := newDB(t)
 	srcDir := t.TempDir()
 
-	_, err := db.CreateWatcher("list-watcher", srcDir)
+	_, err := db.CreateMachine("test-machine", "hw-id-list")
+	require.NoError(t, err)
+
+	_, err = db.CreateWatcher("list-watcher", srcDir, "test-machine")
 	require.NoError(t, err)
 
 	_, err = db.AddWatchedFile("list-watcher", filepath.Join(srcDir, "pending.txt"), true)
@@ -76,7 +83,10 @@ func TestIntegration_WatcherDeleteCascades(t *testing.T) {
 	srcDir := t.TempDir()
 	tgtDir := t.TempDir()
 
-	_, err := db.CreateWatcher("cascade-watcher", srcDir)
+	_, err := db.CreateMachine("test-machine", "hw-id-cascade")
+	require.NoError(t, err)
+
+	_, err = db.CreateWatcher("cascade-watcher", srcDir, "test-machine")
 	require.NoError(t, err)
 
 	_, err = db.AddRedirection("cascade-watcher", tgtDir, false)

@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"time"
-	pb "tiny-file-watcher/gen/grpc"
 
 	"github.com/spf13/cobra"
+
+	clientmachine "tiny-file-watcher/client/machine"
+	pb "tiny-file-watcher/gen/grpc"
 )
 
 var syncWatcherCmd = &cobra.Command{
@@ -14,11 +16,19 @@ var syncWatcherCmd = &cobra.Command{
 	Short: "Sync a watcher by scanning its source directory",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		token, err := clientmachine.LoadMachineToken()
+		if err != nil {
+			return fmt.Errorf("load machine token: %w", err)
+		}
+
 		svc := pb.NewFileWatcherServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: args[0]})
+		resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{
+			Name:  args[0],
+			Token: token,
+		})
 		if err != nil {
 			return err
 		}

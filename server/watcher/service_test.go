@@ -27,16 +27,17 @@ var (
 
 func newWatcher(id int64, name, path string) *database.FileWatcher {
 	return &database.FileWatcher{
-		ID:         id,
-		Name:       name,
-		SourcePath: path,
-		CreatedAt:  fixedAt,
-		UpdatedAt:  fixedAt,
+		ID:          id,
+		MachineName: "test-machine",
+		Name:        name,
+		SourcePath:  path,
+		CreatedAt:   fixedAt,
+		UpdatedAt:   fixedAt,
 	}
 }
 
-func newService(fileWatcherRepository *mocks.MockFileWatcherRepository, fileRepository *mocks.MockFileRepository, filterRepository *mocks.MockFilterRepository) *watcher.WatcherService {
-	return watcher.NewManagerService(fileWatcherRepository, fileRepository, filterRepository, testutil.TestLogger())
+func newService(fileWatcherRepository *mocks.MockFileWatcherRepository, fileRepository *mocks.MockFileRepository, filterRepository *mocks.MockFilterRepository, machineRepository *mocks.MockMachineRepository) *watcher.WatcherService {
+	return watcher.NewManagerService(fileWatcherRepository, fileRepository, filterRepository, machineRepository, testutil.TestLogger())
 }
 
 // ── CreateWatcher ─────────────────────────────────────────────────────────────
@@ -45,17 +46,19 @@ func TestCreateWatcher_OK(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
 	filterRepo := &mocks.MockFilterRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, filterRepo)
+	machineRepo := &mocks.MockMachineRepository{}
+	svc := newService(fileWatcherRepo, fileRepo, filterRepo, machineRepo)
 
 	w := newWatcher(1, "my-watcher", "/tmp/src")
-	fileWatcherRepo.On("CreateWatcher", "my-watcher", "/tmp/src").Return(w, nil)
+	fileWatcherRepo.On("CreateWatcher", "my-watcher", "/tmp/src", "test-machine").Return(w, nil)
 
-	resp, err := svc.CreateWatcher(ctx, &pb.CreateWatcherRequest{Name: "my-watcher", SourcePath: "/tmp/src"})
+	resp, err := svc.CreateWatcher(ctx, &pb.CreateWatcherRequest{Name: "my-watcher", SourcePath: "/tmp/src", MachineName: "test-machine"})
 
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), resp.Id)
 	assert.Equal(t, "my-watcher", resp.Name)
 	assert.Equal(t, "/tmp/src", resp.SourcePath)
+	assert.Equal(t, "test-machine", resp.MachineName)
 	fileWatcherRepo.AssertExpectations(t)
 }
 
@@ -63,19 +66,20 @@ func TestCreateWatcher_WithFlushExisting(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
 	filterRepo := &mocks.MockFilterRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, filterRepo)
+	machineRepo := &mocks.MockMachineRepository{}
+	svc := newService(fileWatcherRepo, fileRepo, filterRepo, machineRepo)
 
 	w := newWatcher(1, "my-watcher", "/tmp/src")
-	fileWatcherRepo.On("CreateWatcher", "my-watcher", "/tmp/src").Return(w, nil)
+	fileWatcherRepo.On("CreateWatcher", "my-watcher", "/tmp/src", "test-machine").Return(w, nil)
 
-	_, err := svc.CreateWatcher(ctx, &pb.CreateWatcherRequest{Name: "my-watcher", SourcePath: "/tmp/src", FlushExisting: true})
+	_, err := svc.CreateWatcher(ctx, &pb.CreateWatcherRequest{Name: "my-watcher", SourcePath: "/tmp/src", FlushExisting: true, MachineName: "test-machine"})
 
 	assert.NoError(t, err)
 	fileWatcherRepo.AssertExpectations(t)
 }
 
 func TestCreateWatcher_MissingName(t *testing.T) {
-	svc := newService(&mocks.MockFileWatcherRepository{}, &mocks.MockFileRepository{}, &mocks.MockFilterRepository{})
+	svc := newService(&mocks.MockFileWatcherRepository{}, &mocks.MockFileRepository{}, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	_, err := svc.CreateWatcher(ctx, &pb.CreateWatcherRequest{Name: "", SourcePath: "/tmp/src"})
 
@@ -83,7 +87,7 @@ func TestCreateWatcher_MissingName(t *testing.T) {
 }
 
 func TestCreateWatcher_MissingSourcePath(t *testing.T) {
-	svc := newService(&mocks.MockFileWatcherRepository{}, &mocks.MockFileRepository{}, &mocks.MockFilterRepository{})
+	svc := newService(&mocks.MockFileWatcherRepository{}, &mocks.MockFileRepository{}, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	_, err := svc.CreateWatcher(ctx, &pb.CreateWatcherRequest{Name: "w", SourcePath: ""})
 
@@ -93,11 +97,11 @@ func TestCreateWatcher_MissingSourcePath(t *testing.T) {
 func TestCreateWatcher_DBError(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
-	fileWatcherRepo.On("CreateWatcher", "w", "/tmp").Return(nil, errors.New("db error"))
+	fileWatcherRepo.On("CreateWatcher", "w", "/tmp", "m").Return(nil, errors.New("db error"))
 
-	_, err := svc.CreateWatcher(ctx, &pb.CreateWatcherRequest{Name: "w", SourcePath: "/tmp"})
+	_, err := svc.CreateWatcher(ctx, &pb.CreateWatcherRequest{Name: "w", SourcePath: "/tmp", MachineName: "m"})
 
 	assertCode(t, err, codes.Internal)
 	fileWatcherRepo.AssertExpectations(t)
@@ -108,7 +112,7 @@ func TestCreateWatcher_DBError(t *testing.T) {
 func TestGetWatcherById_OK(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	w := newWatcher(42, "w", "/tmp")
 	fileWatcherRepo.On("GetWatcherById", int64(42)).Return(w, nil)
@@ -123,7 +127,7 @@ func TestGetWatcherById_OK(t *testing.T) {
 func TestGetWatcherById_NotFound(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	fileWatcherRepo.On("GetWatcherById", int64(99)).Return(nil, errors.New("not found"))
 
@@ -138,7 +142,7 @@ func TestGetWatcherById_NotFound(t *testing.T) {
 func TestGetWatcherByName_OK(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	w := newWatcher(1, "foo", "/tmp")
 	fileWatcherRepo.On("GetWatcherByName", "foo").Return(w, nil)
@@ -153,7 +157,7 @@ func TestGetWatcherByName_OK(t *testing.T) {
 func TestGetWatcherByName_NotFound(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	fileWatcherRepo.On("GetWatcherByName", "missing").Return(nil, errors.New("not found"))
 
@@ -168,7 +172,7 @@ func TestGetWatcherByName_NotFound(t *testing.T) {
 func TestListWatchers_Empty(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	fileWatcherRepo.On("ListWatchers").Return([]*database.FileWatcher{}, nil)
 
@@ -182,7 +186,7 @@ func TestListWatchers_Empty(t *testing.T) {
 func TestListWatchers_Populated(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	watchers := []*database.FileWatcher{
 		newWatcher(1, "a", "/tmp/a"),
@@ -200,7 +204,7 @@ func TestListWatchers_Populated(t *testing.T) {
 func TestListWatchers_DBError(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	fileWatcherRepo.On("ListWatchers").Return(nil, errors.New("db error"))
 
@@ -215,7 +219,7 @@ func TestListWatchers_DBError(t *testing.T) {
 func TestUpdateWatcher_OK(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	w := newWatcher(1, "new-name", "/new/path")
 	name := "new-name"
@@ -232,7 +236,7 @@ func TestUpdateWatcher_OK(t *testing.T) {
 func TestUpdateWatcher_InvalidId(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	name := "n"
 	sourcePath := "/p"
@@ -245,7 +249,7 @@ func TestUpdateWatcher_InvalidId(t *testing.T) {
 func TestUpdateWatcher_NotFound(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	name := "n"
 	sourcePath := "/new/path"
@@ -258,7 +262,7 @@ func TestUpdateWatcher_NotFound(t *testing.T) {
 func TestUpdateWatcher_NullParameter(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	var name *string = nil
 	newPath := "/new/path"
@@ -275,7 +279,7 @@ func TestUpdateWatcher_NullParameter(t *testing.T) {
 func TestUpdateWatcher_DBError(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	name := "n"
 	sourcePath := "/p"
@@ -293,7 +297,7 @@ func TestUpdateWatcher_DBError(t *testing.T) {
 func TestDeleteWatcher_OK(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	w := newWatcher(1, "to-delete", "/tmp")
 	fileWatcherRepo.On("GetWatcherByName", "to-delete").Return(w, nil)
@@ -309,7 +313,7 @@ func TestDeleteWatcher_OK(t *testing.T) {
 func TestDeleteWatcher_NotFound(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	fileWatcherRepo.On("GetWatcherByName", "ghost").Return(nil, errors.New("not found"))
 
@@ -322,7 +326,7 @@ func TestDeleteWatcher_NotFound(t *testing.T) {
 func TestDeleteWatcher_DBDeleteError(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, fileRepo, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	w := newWatcher(1, "w", "/tmp")
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
@@ -336,19 +340,27 @@ func TestDeleteWatcher_DBDeleteError(t *testing.T) {
 
 // ── SyncWatcher ───────────────────────────────────────────────────────────────
 
+const testToken = "test-token-1234"
+
+func newMachineForSync() *database.Machine {
+	return &database.Machine{ID: 1, Token: testToken, Name: "test-machine"}
+}
+
 func TestSyncWatcher_EmptyDir_NoFilesInDB(t *testing.T) {
 	dir := t.TempDir()
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
 	filterRepo := &mocks.MockFilterRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, filterRepo)
+	machineRepo := &mocks.MockMachineRepository{}
+	svc := newService(fileWatcherRepo, fileRepo, filterRepo, machineRepo)
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
+	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
 	filterRepo.On("GetFiltersForWatcher", "w").Return([]*database.WatcherFilter{}, nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 
-	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
+	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w", Token: testToken})
 
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), resp.AddedCount)
@@ -362,7 +374,8 @@ func TestSyncWatcher_NewFilesAdded(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
 	filterRepo := &mocks.MockFilterRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, filterRepo)
+	machineRepo := &mocks.MockMachineRepository{}
+	svc := newService(fileWatcherRepo, fileRepo, filterRepo, machineRepo)
 
 	// Create files on disk.
 	f1 := filepath.Join(dir, "a.txt")
@@ -373,12 +386,13 @@ func TestSyncWatcher_NewFilesAdded(t *testing.T) {
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
+	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
 	filterRepo.On("GetFiltersForWatcher", "w").Return([]*database.WatcherFilter{}, nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 	fileRepo.On("AddWatchedFile", "w", f1, false).Return(&database.WatchedFile{}, nil)
 	fileRepo.On("AddWatchedFile", "w", f2, false).Return(&database.WatchedFile{}, nil)
 
-	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
+	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w", Token: testToken})
 
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), resp.AddedCount)
@@ -391,20 +405,22 @@ func TestSyncWatcher_RemovedFiles(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
 	filterRepo := &mocks.MockFilterRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, filterRepo)
+	machineRepo := &mocks.MockMachineRepository{}
+	svc := newService(fileWatcherRepo, fileRepo, filterRepo, machineRepo)
 
 	// File was in DB but no longer on disk.
 	ghost := filepath.Join(dir, "ghost.txt")
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
+	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
 	filterRepo.On("GetFiltersForWatcher", "w").Return([]*database.WatcherFilter{}, nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{
 		{ID: 1, WatcherName: "w", FilePath: ghost},
 	}, nil)
 	fileRepo.On("RemoveWatchedFile", "w", ghost).Return(nil)
 
-	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
+	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w", Token: testToken})
 
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), resp.AddedCount)
@@ -418,7 +434,8 @@ func TestSyncWatcher_FilterApplied(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
 	filterRepo := &mocks.MockFilterRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, filterRepo)
+	machineRepo := &mocks.MockMachineRepository{}
+	svc := newService(fileWatcherRepo, fileRepo, filterRepo, machineRepo)
 
 	// Only .txt files should be accepted; .log should be excluded.
 	accepted := filepath.Join(dir, "data.txt")
@@ -429,13 +446,14 @@ func TestSyncWatcher_FilterApplied(t *testing.T) {
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
+	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
 	filterRepo.On("GetFiltersForWatcher", "w").Return([]*database.WatcherFilter{
 		{RuleType: "include", PatternType: "extension", Pattern: ".txt"},
 	}, nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 	fileRepo.On("AddWatchedFile", "w", accepted, false).Return(&database.WatchedFile{}, nil)
 
-	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
+	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w", Token: testToken})
 
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), resp.AddedCount)
@@ -445,21 +463,57 @@ func TestSyncWatcher_FilterApplied(t *testing.T) {
 
 func TestSyncWatcher_WatcherNotFound(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
-	svc := newService(fileWatcherRepo, &mocks.MockFileRepository{}, &mocks.MockFilterRepository{})
+	svc := newService(fileWatcherRepo, &mocks.MockFileRepository{}, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	fileWatcherRepo.On("GetWatcherByName", "missing").Return(nil, errors.New("not found"))
 
-	_, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "missing"})
+	_, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "missing", Token: testToken})
 
 	assertCode(t, err, codes.NotFound)
 }
 
 func TestSyncWatcher_MissingName(t *testing.T) {
-	svc := newService(&mocks.MockFileWatcherRepository{}, &mocks.MockFileRepository{}, &mocks.MockFilterRepository{})
+	svc := newService(&mocks.MockFileWatcherRepository{}, &mocks.MockFileRepository{}, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
 
 	_, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: ""})
 
 	assertCode(t, err, codes.InvalidArgument)
+}
+
+func TestSyncWatcher_MissingToken(t *testing.T) {
+	svc := newService(&mocks.MockFileWatcherRepository{}, &mocks.MockFileRepository{}, &mocks.MockFilterRepository{}, &mocks.MockMachineRepository{})
+
+	_, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w", Token: ""})
+
+	assertCode(t, err, codes.InvalidArgument)
+}
+
+func TestSyncWatcher_WrongMachine_PermissionDenied(t *testing.T) {
+	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
+	machineRepo := &mocks.MockMachineRepository{}
+	svc := newService(fileWatcherRepo, &mocks.MockFileRepository{}, &mocks.MockFilterRepository{}, machineRepo)
+
+	w := &database.FileWatcher{ID: 1, MachineName: "machine-A", Name: "w", SourcePath: "/tmp"}
+	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
+	machineRepo.On("GetMachineByToken", testToken).Return(&database.Machine{Name: "machine-B"}, nil)
+
+	_, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w", Token: testToken})
+
+	assertCode(t, err, codes.PermissionDenied)
+}
+
+func TestSyncWatcher_UnknownMachine_PermissionDenied(t *testing.T) {
+	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
+	machineRepo := &mocks.MockMachineRepository{}
+	svc := newService(fileWatcherRepo, &mocks.MockFileRepository{}, &mocks.MockFilterRepository{}, machineRepo)
+
+	w := newWatcher(1, "w", "/tmp")
+	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
+	machineRepo.On("GetMachineByToken", "unknown-token").Return(nil, errors.New("not found"))
+
+	_, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w", Token: "unknown-token"})
+
+	assertCode(t, err, codes.PermissionDenied)
 }
 
 func TestSyncWatcher_AlreadyInDB_NotReAdded(t *testing.T) {
@@ -467,19 +521,21 @@ func TestSyncWatcher_AlreadyInDB_NotReAdded(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
 	filterRepo := &mocks.MockFilterRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, filterRepo)
+	machineRepo := &mocks.MockMachineRepository{}
+	svc := newService(fileWatcherRepo, fileRepo, filterRepo, machineRepo)
 
 	existing := filepath.Join(dir, "existing.txt")
 	require(t, os.WriteFile(existing, []byte("x"), 0o644))
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
+	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
 	filterRepo.On("GetFiltersForWatcher", "w").Return([]*database.WatcherFilter{}, nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{
 		{ID: 1, WatcherName: "w", FilePath: existing},
 	}, nil)
 
-	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
+	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w", Token: testToken})
 
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), resp.AddedCount)
@@ -492,7 +548,8 @@ func TestSyncWatcher_FlushExistingTrue_FilesAddedAsPending(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
 	filterRepo := &mocks.MockFilterRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, filterRepo)
+	machineRepo := &mocks.MockMachineRepository{}
+	svc := newService(fileWatcherRepo, fileRepo, filterRepo, machineRepo)
 
 	f1 := filepath.Join(dir, "existing.txt")
 	require(t, os.WriteFile(f1, []byte("x"), 0o644))
@@ -501,16 +558,17 @@ func TestSyncWatcher_FlushExistingTrue_FilesAddedAsPending(t *testing.T) {
 	w := newWatcher(1, "w", dir)
 	watchedFile := &database.WatchedFile{ID: 1, WatcherName: "w", FilePath: f1, Flushed: true}
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
+	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
 	filterRepo.On("GetFiltersForWatcher", "w").Return([]*database.WatcherFilter{}, nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{watchedFile}, nil)
 	fileRepo.On("AddWatchedFile", "w", f1, true).Return(&database.WatchedFile{}, nil)
-	fileWatcherRepo.On("CreateWatcher", "w", dir).Return(w, nil)
+	fileWatcherRepo.On("CreateWatcher", "w", dir, "test-machine").Return(w, nil)
 
-	_, err := svc.CreateWatcher(ctx, &pb.CreateWatcherRequest{Name: "w", SourcePath: dir, FlushExisting: true})
+	_, err := svc.CreateWatcher(ctx, &pb.CreateWatcherRequest{Name: "w", SourcePath: dir, FlushExisting: true, MachineName: "test-machine"})
 	if err != nil {
 		t.Fatalf("CreateWatcher error: %v", err)
 	}
-	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
+	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w", Token: testToken})
 
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), resp.AddedCount)
@@ -522,7 +580,8 @@ func TestSyncWatcher_FlushExistingFalse_FilesAddedAsFlushed(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
 	filterRepo := &mocks.MockFilterRepository{}
-	svc := newService(fileWatcherRepo, fileRepo, filterRepo)
+	machineRepo := &mocks.MockMachineRepository{}
+	svc := newService(fileWatcherRepo, fileRepo, filterRepo, machineRepo)
 
 	f1 := filepath.Join(dir, "existing.txt")
 	require(t, os.WriteFile(f1, []byte("x"), 0o644))
@@ -530,11 +589,12 @@ func TestSyncWatcher_FlushExistingFalse_FilesAddedAsFlushed(t *testing.T) {
 	// Watcher has flush_existing=false (default) → files added as already flushed (flushed=true).
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
+	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
 	filterRepo.On("GetFiltersForWatcher", "w").Return([]*database.WatcherFilter{}, nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 	fileRepo.On("AddWatchedFile", "w", f1, false).Return(&database.WatchedFile{}, nil)
 
-	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
+	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w", Token: testToken})
 
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), resp.AddedCount)

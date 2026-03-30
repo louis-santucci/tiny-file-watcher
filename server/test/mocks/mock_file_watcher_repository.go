@@ -11,8 +11,8 @@ type MockFileWatcherRepository struct {
 	mock.Mock
 }
 
-func (m *MockFileWatcherRepository) CreateWatcher(name, sourcePath string) (*database.FileWatcher, error) {
-	args := m.Called(name, sourcePath)
+func (m *MockFileWatcherRepository) CreateWatcher(name, sourcePath, machineName string) (*database.FileWatcher, error) {
+	args := m.Called(name, sourcePath, machineName)
 	if v := args.Get(0); v != nil {
 		return v.(*database.FileWatcher), args.Error(1)
 	}
@@ -37,6 +37,14 @@ func (m *MockFileWatcherRepository) GetWatcherByName(name string) (*database.Fil
 
 func (m *MockFileWatcherRepository) ListWatchers() ([]*database.FileWatcher, error) {
 	args := m.Called()
+	if v := args.Get(0); v != nil {
+		return v.([]*database.FileWatcher), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockFileWatcherRepository) ListWatchersByMachine(machineName string) ([]*database.FileWatcher, error) {
+	args := m.Called(machineName)
 	if v := args.Get(0); v != nil {
 		return v.([]*database.FileWatcher), args.Error(1)
 	}

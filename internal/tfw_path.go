@@ -11,6 +11,7 @@ const (
 	ConfigFileName   = "tfw.yml"
 	DatabaseFileName = "tfw.db"
 	TokensFileName   = "tokens.json"
+	MachineFileName  = "machine.json"
 )
 
 func Dir() (string, error) {
@@ -43,4 +44,12 @@ func TokensPath() string {
 		panic(fmt.Sprintf("failed to determine tokens path: %v", err))
 	}
 	return filepath.Join(dir, TokensFileName)
+}
+
+func MachinePath() string {
+	dir, err := Dir()
+	if err != nil {
+		panic(fmt.Sprintf("failed to determine machine path: %v", err))
+	}
+	return filepath.Join(dir, MachineFileName)
 }

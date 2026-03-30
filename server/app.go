@@ -16,6 +16,7 @@ import (
 	"tiny-file-watcher/server/filter"
 	"tiny-file-watcher/server/flush"
 	"tiny-file-watcher/server/interceptor"
+	"tiny-file-watcher/server/machine"
 	"tiny-file-watcher/server/redirection"
 	"tiny-file-watcher/server/watcher"
 	"tiny-file-watcher/server/web"
@@ -87,14 +88,16 @@ func NewApp() (*App, error) {
 		grpc.ChainStreamInterceptor(streamAuthInterceptor),
 	)
 	reflection.Register(grpcServer)
-	watcherSvc := watcher.NewManagerService(db, db, db, logger)
+	watcherSvc := watcher.NewManagerService(db, db, db, db, logger)
 	redirectionSvc := redirection.NewRedirectionService(db, db, db, logger)
 	flushSvc := flush.NewFlushService(db, logger)
 	filterSvc := filter.NewFilterService(db, logger)
+	machineSvc := machine.NewMachineService(db, logger)
 	pb.RegisterFileWatcherServiceServer(grpcServer, watcherSvc)
 	pb.RegisterFileRedirectionServiceServer(grpcServer, redirectionSvc)
 	pb.RegisterFileFlushServiceServer(grpcServer, flushSvc)
 	pb.RegisterWatcherFilterServiceServer(grpcServer, filterSvc)
+	pb.RegisterMachineServiceServer(grpcServer, machineSvc)
 
 	webHandler, err := web.New(watcherSvc, flushSvc, redirectionSvc, filterSvc, oidcCfg)
 	if err != nil {

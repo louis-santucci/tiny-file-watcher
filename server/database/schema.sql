@@ -1,17 +1,16 @@
 CREATE TABLE IF NOT EXISTS machines
 (
-    id          INTEGER PRIMARY KEY,
-    hardware_id TEXT UNIQUE NOT NULL,
-    name        TEXT UNIQUE NOT NULL,
-    token       TEXT        NOT NULL,
-    created_at  TEXT        NOT NULL,
-    updated_at  TEXT        NOT NULL
+    id         INTEGER PRIMARY KEY,
+    token      TEXT UNIQUE NOT NULL,
+    name       TEXT UNIQUE NOT NULL,
+    created_at TEXT        NOT NULL,
+    updated_at TEXT        NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS file_watchers
 (
     id           INTEGER PRIMARY KEY,
-    machine_name INTEGER     NOT NULL REFERENCES machines (name) ON DELETE CASCADE,
+    machine_name TEXT        NOT NULL REFERENCES machines (name) ON DELETE CASCADE,
     name         TEXT UNIQUE NOT NULL,
     source_path  TEXT        NOT NULL,
     created_at   TEXT        NOT NULL,
@@ -61,5 +60,6 @@ SELECT wf.id           AS watched_file_id,
        fr.target_path  AS target_path
 FROM watched_files wf
          INNER JOIN file_redirections fr ON fr.watcher_name = wf.watcher_name
-         INNER JOIN machines m on m.name = wf.watcher_name
+         INNER JOIN file_watchers fw ON fw.name = wf.watcher_name
+         INNER JOIN machines m ON m.name = fw.machine_name
 WHERE wf.flushed = 0;

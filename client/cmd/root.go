@@ -40,6 +40,7 @@ func init() {
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
 	rootCmd.AddCommand(syncWatcherCmd)
+	rootCmd.AddCommand(machineCmd)
 }
 
 func dial() error {

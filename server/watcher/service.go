@@ -14,6 +14,7 @@ import (
 
 	pb "tiny-file-watcher/gen/grpc"
 	"tiny-file-watcher/server/database"
+	"tiny-file-watcher/server/machine"
 )
 
 // WatcherService implements the FileWatcherService gRPC server.
@@ -22,14 +23,16 @@ type WatcherService struct {
 	fileWatcherRepository FileWatcherRepository
 	fileRepository        FileRepository
 	filterRepository      FilterRepository
+	machineRepository     machine.MachineRepository
 	logger                *slog.Logger
 }
 
-func NewManagerService(fileWatcherRepository FileWatcherRepository, fileRepository FileRepository, filterRepository FilterRepository, logger *slog.Logger) *WatcherService {
+func NewManagerService(fileWatcherRepository FileWatcherRepository, fileRepository FileRepository, filterRepository FilterRepository, machineRepository machine.MachineRepository, logger *slog.Logger) *WatcherService {
 	return &WatcherService{
 		fileWatcherRepository: fileWatcherRepository,
 		fileRepository:        fileRepository,
 		filterRepository:      filterRepository,
+		machineRepository:     machineRepository,
 		logger:                logger,
 	}
 }
@@ -38,7 +41,10 @@ func (s *WatcherService) CreateWatcher(_ context.Context, req *pb.CreateWatcherR
 	if req.Name == "" || req.SourcePath == "" {
 		return nil, status.Error(codes.InvalidArgument, "name and source_path are required")
 	}
-	w, err := s.fileWatcherRepository.CreateWatcher(req.Name, req.SourcePath)
+	if req.MachineName == "" {
+		return nil, status.Error(codes.InvalidArgument, "machine_name is required: initialize this machine first with 'tfw machine create'")
+	}
+	w, err := s.fileWatcherRepository.CreateWatcher(req.Name, req.SourcePath, req.MachineName)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create watcher: %v", err)
 	}
@@ -121,8 +127,16 @@ func (s *WatcherService) GetWatcherByName(_ context.Context, req *pb.GetWatcherB
 	return toProto(w), nil
 }
 
-func (s *WatcherService) ListWatchers(_ context.Context, _ *pb.ListWatchersRequest) (*pb.ListWatchersResponse, error) {
-	watchers, err := s.fileWatcherRepository.ListWatchers()
+func (s *WatcherService) ListWatchers(_ context.Context, req *pb.ListWatchersRequest) (*pb.ListWatchersResponse, error) {
+	var (
+		watchers []*database.FileWatcher
+		err      error
+	)
+	if req.MachineName != nil && *req.MachineName != "" {
+		watchers, err = s.fileWatcherRepository.ListWatchersByMachine(*req.MachineName)
+	} else {
+		watchers, err = s.fileWatcherRepository.ListWatchers()
+	}
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list watchers: %v", err)
 	}
@@ -160,14 +174,29 @@ func (s *WatcherService) DeleteWatcher(_ context.Context, req *pb.DeleteWatcherR
 
 // SyncWatcher walks the watcher's source_path, diffs against the current
 // unflushed watched_files in the DB, and adds/removes entries accordingly.
+// It validates that the caller's machine (identified by token) owns the watcher.
 func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherRequest) (*pb.SyncWatcherResponse, error) {
 	if req.Name == "" {
 		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	if req.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "token is required")
 	}
 
 	w, err := s.fileWatcherRepository.GetWatcherByName(req.Name)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "watcher %s not found", req.Name)
+	}
+
+	// Verify the caller's machine owns this watcher.
+	callerMachine, err := s.machineRepository.GetMachineByToken(req.Token)
+	if err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "machine with token %q is not registered", req.Token)
+	}
+	if callerMachine.Name != w.MachineName {
+		return nil, status.Errorf(codes.PermissionDenied,
+			"watcher %q belongs to machine %q, but request comes from machine %q",
+			req.Name, w.MachineName, callerMachine.Name)
 	}
 
 	filters, err := s.filterRepository.GetFiltersForWatcher(req.Name)
@@ -232,7 +261,7 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 		}
 	}
 
-	s.logger.Info("sync complete", "watcher", req.Name, "added", len(addedFiles), "removed", len(removedFiles))
+	s.logger.Info("sync complete", "watcher", req.Name, "machine", callerMachine.Name, "added", len(addedFiles), "removed", len(removedFiles))
 
 	return &pb.SyncWatcherResponse{
 		AddedCount:   int64(len(addedFiles)),
@@ -244,11 +273,12 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 
 func toProto(w *database.FileWatcher) *pb.Watcher {
 	return &pb.Watcher{
-		Id:         w.ID,
-		Name:       w.Name,
-		SourcePath: w.SourcePath,
-		CreatedAt:  timestamppb.New(w.CreatedAt),
-		UpdatedAt:  timestamppb.New(w.UpdatedAt),
+		Id:          w.ID,
+		Name:        w.Name,
+		SourcePath:  w.SourcePath,
+		MachineName: w.MachineName,
+		CreatedAt:   timestamppb.New(w.CreatedAt),
+		UpdatedAt:   timestamppb.New(w.UpdatedAt),
 	}
 }
 

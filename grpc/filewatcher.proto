@@ -158,6 +158,28 @@ message ListWatchedFilesResponse {
   repeated WatchedFile files = 1;
 }
 
+message InitializeMachineRequest {
+  string name = 1;
+}
+
+message MachineResponse {
+  string machine_id = 1;
+  string name = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message GetMachinesResponse {
+  repeated MachineResponse machines = 1;
+}
+
+message EmptyRequest {}
+
+service MachineService {
+  rpc InitializeMachine(InitializeMachineRequest) returns (MachineResponse);
+  rpc GetMachines(EmptyRequest)                   returns (GetMachinesResponse);
+}
+
 service FileWatcherService {
   rpc CreateWatcher(CreateWatcherRequest)       returns (Watcher);
   rpc GetWatcherById(GetWatcherByIdRequest)     returns (Watcher);
@@ -170,12 +192,12 @@ service FileWatcherService {
 }
 
 service FileFlushService {
-  rpc FlushWatcher(FlushWatcherRequest) returns (FlushWatcherResponse);
+  rpc FlushWatcher(FlushWatcherRequest)         returns (FlushWatcherResponse);
   rpc ListPendingFiles(ListPendingFilesRequest) returns (ListPendingFilesResponse);
 }
 
 service FileRedirectionService {
-  rpc GetFileRedirection(GetFileRedirectionRequest) returns (FileRedirection);
+  rpc GetFileRedirection(GetFileRedirectionRequest)       returns (FileRedirection);
   rpc CreateFileRedirection(CreateFileRedirectionRequest) returns (FileRedirection);
   rpc UpdateFileRedirection(UpdateFileRedirectionRequest) returns (FileRedirection);
   rpc DeleteFileRedirection(DeleteFileRedirectionRequest) returns (DeleteFileRedirectionResponse);

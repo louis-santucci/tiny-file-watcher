@@ -36,6 +36,8 @@ FROM dhi.io/debian-base:trixie-debian13 AS final
 # Set the working directory
 WORKDIR /app
 
+RUN mkdir -p /app/data
+
 # Copy the built application from the builder stage
 COPY --from=builder /build/tfws ./tfws
 

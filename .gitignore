@@ -13,8 +13,6 @@ tfws
 
 gen/
 
-go.sum
-
 **/*.db
 
 # Eclipse

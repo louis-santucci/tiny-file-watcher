@@ -22,7 +22,7 @@ PLIST_DEST        := $(LAUNCH_AGENTS_DIR)/$(PLIST_LABEL).plist
 
 IOS_GEN_DIR := tiny-file-watcher-app/tiny-file-watcher-app/Generated
 
-DOCKER_IMAGE   := tfws
+DOCKER_IMAGE   := louissantucci/tfws
 DOCKER_TAG     := latest
 
 .PHONY: all help install-tools generate build build-client build-all install test lint clean \

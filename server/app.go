@@ -63,7 +63,7 @@ func NewApp() (*App, error) {
 	grpcAddr, _ := cfg.String("grpc.address")
 
 	dbPath, _ := cfg.StringOr("database.path", internal.DatabasePath())
-	slog.Debug("database path: %s", dbPath)
+	slog.Debug("database path: " + dbPath)
 	db, err := database.Open(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)

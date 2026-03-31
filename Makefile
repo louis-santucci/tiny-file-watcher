@@ -22,8 +22,11 @@ PLIST_DEST        := $(LAUNCH_AGENTS_DIR)/$(PLIST_LABEL).plist
 
 IOS_GEN_DIR := tiny-file-watcher-app/tiny-file-watcher-app/Generated
 
+DOCKER_IMAGE   := tfws
+DOCKER_TAG     := latest
+
 .PHONY: all help install-tools generate build build-client build-all install test lint clean \
-        install-service uninstall-service enable-service disable-service
+        install-service uninstall-service enable-service disable-service docker-build
 
 ## help: list all available make rules with descriptions
 help:
@@ -116,3 +119,9 @@ enable-service:
 disable-service:
 	@launchctl unload -w $(PLIST_DEST)
 	@echo "tfws LaunchAgent disabled."
+
+## docker-build: build the Docker image using the provided Dockerfile
+docker-build:
+	@docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+	@echo "Docker image $(DOCKER_IMAGE):$(DOCKER_TAG) built."
+

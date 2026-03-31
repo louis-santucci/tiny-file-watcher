@@ -41,7 +41,7 @@ func initEnvVariables() map[string]string {
 		"OIDC_CLIENT_ID":     "oidc.client-id",
 		"OIDC_CLIENT_SECRET": "oidc.client-secret",
 		"OIDC_REDIRECT_URI":  "oidc.redirect-uri",
-		"TFW_DB_PATH":        "database.path",
+		"DATABASE_PATH":      "database.path",
 	}
 	return mappings
 }

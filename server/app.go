@@ -62,7 +62,8 @@ func NewApp() (*App, error) {
 
 	grpcAddr, _ := cfg.String("grpc.address")
 
-	db, err := database.Open(internal.DatabasePath())
+	dbPath, _ := cfg.StringOr("database.path", internal.DatabasePath())
+	db, err := database.Open(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}

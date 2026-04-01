@@ -20,10 +20,16 @@ PLIST_LABEL       := louissantucci.tfws
 PLIST_TEMPLATE    := launchd/$(PLIST_LABEL).plist
 PLIST_DEST        := $(LAUNCH_AGENTS_DIR)/$(PLIST_LABEL).plist
 
+SYSTEMD_USER_DIR  := $(HOME)/.config/systemd/user
+SERVICE_NAME      := tfws.service
+SERVICE_TEMPLATE  := systemd/$(SERVICE_NAME)
+SERVICE_DEST      := $(SYSTEMD_USER_DIR)/$(SERVICE_NAME)
+
 IOS_GEN_DIR := tiny-file-watcher-app/tiny-file-watcher-app/Generated
 
 .PHONY: all help install-tools generate build build-client build-all install test lint clean \
-        install-service uninstall-service enable-service disable-service
+        install-service uninstall-service enable-service disable-service \
+        install-service-linux uninstall-service-linux enable-service-linux disable-service-linux
 
 ## help: list all available make rules with descriptions
 help:
@@ -116,3 +122,31 @@ enable-service:
 disable-service:
 	@launchctl unload -w $(PLIST_DEST)
 	@echo "tfws LaunchAgent disabled."
+
+## install-service-linux: install tfws and register as a systemd user service (starts at login)
+install-service-linux: install
+	@mkdir -p $(SYSTEMD_USER_DIR)
+	@mkdir -p $(HOME)/.local/share/tfws
+	@sed -e 's|@@BINARY_PATH@@|$(INSTALL_DIR)/$(SERVER_BINARY)|g' \
+	     -e 's|@@HOME@@|$(HOME)|g' \
+	     $(SERVICE_TEMPLATE) > $(SERVICE_DEST)
+	@systemctl --user daemon-reload
+	@systemctl --user enable --now $(SERVICE_NAME)
+	@echo "tfws systemd user service installed and started."
+
+## uninstall-service-linux: stop and remove the tfws systemd user service
+uninstall-service-linux:
+	@systemctl --user disable --now $(SERVICE_NAME) 2>/dev/null || true
+	@rm -f $(SERVICE_DEST)
+	@systemctl --user daemon-reload
+	@echo "tfws systemd user service removed."
+
+## enable-service-linux: enable (start) the tfws systemd user service
+enable-service-linux:
+	@systemctl --user enable --now $(SERVICE_NAME)
+	@echo "tfws systemd user service enabled."
+
+## disable-service-linux: disable (stop) the tfws systemd user service
+disable-service-linux:
+	@systemctl --user disable --now $(SERVICE_NAME)
+	@echo "tfws systemd user service disabled."

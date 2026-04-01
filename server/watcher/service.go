@@ -207,6 +207,11 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 	// Walk the source directory and collect all files that pass the filters.
 	onDisk := internal.NewSet[string]()
 	walkErr := filepath.WalkDir(w.SourcePath, func(path string, d fs.DirEntry, err error) error {
+		s.logger.Debug("sync: walking path", "watcher", req.Name, "path", path)
+		if d == nil {
+			s.logger.Warn("sync: dir entry is nil, skipping path", "watcher", req.Name, "path", path, "err", err)
+			return nil
+		}
 		if err != nil {
 			return nil // skip unreadable entries
 		}

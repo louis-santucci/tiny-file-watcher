@@ -61,6 +61,7 @@ func NewApp() (*App, error) {
 	log.Printf("log_level=%s", logLevel)
 
 	grpcAddr, _ := cfg.String("grpc.address")
+	slog.Debug("gRPC address: " + grpcAddr)
 
 	dbPath, _ := cfg.StringOr("database.path", internal.DatabasePath())
 	slog.Debug("database path: " + dbPath)

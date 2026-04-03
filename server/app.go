@@ -59,6 +59,16 @@ func NewApp() (*App, error) {
 	logger := slog.Default()
 	log.Printf("log_level=%s", logLevel)
 
+	// ── SSH configuration validation ──────────────────────────────────────────
+	privateKeysPath, _ := cfg.String("ssh.private_keys_path")
+	knownHostsPath, _ := cfg.String("ssh.known_hosts_path")
+	if err := config2.ValidateSSHConfig(config2.SSHConfig{
+		PrivateKeysPath: privateKeysPath,
+		KnownHostsPath:  knownHostsPath,
+	}, logger); err != nil {
+		return nil, fmt.Errorf("ssh config: %w", err)
+	}
+
 	grpcAddr, _ := cfg.String("grpc.address")
 	slog.Debug("gRPC address: " + grpcAddr)
 

@@ -1,10 +1,14 @@
 CREATE TABLE IF NOT EXISTS machines
 (
-    id         INTEGER PRIMARY KEY,
-    token      TEXT UNIQUE NOT NULL,
-    name       TEXT UNIQUE NOT NULL,
-    created_at TEXT        NOT NULL,
-    updated_at TEXT        NOT NULL
+    id              INTEGER PRIMARY KEY,
+    token           TEXT UNIQUE NOT NULL,
+    name            TEXT UNIQUE NOT NULL,
+    ip              TEXT        NOT NULL,
+    ssh_port        INTEGER     NOT NULL,
+    ssh_user        TEXT        NOT NULL,
+    ssh_private_key TEXT        NOT NULL,
+    created_at      TEXT        NOT NULL,
+    updated_at      TEXT        NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS file_watchers

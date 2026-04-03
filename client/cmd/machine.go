@@ -20,7 +20,16 @@ var machineCmd = &cobra.Command{
 	Short:   "Manage machines",
 }
 
+var (
+	createMachineIP      string
+	createMachineSSHPort int32
+)
+
 func init() {
+	createMachineCmd.Flags().StringVar(&createMachineIP, "ip", "", "IP address of the machine (required)")
+	createMachineCmd.Flags().Int32Var(&createMachineSSHPort, "ssh-port", 22, "SSH port of the machine")
+	_ = createMachineCmd.MarkFlagRequired("ip")
+
 	machineCmd.AddCommand(createMachineCmd, listMachinesCmd)
 }
 
@@ -39,8 +48,10 @@ Requires authentication (run 'tfw login' first).`,
 		defer cancel()
 
 		resp, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{
-			Name:  args[0],
-			Token: token,
+			Name:    args[0],
+			Token:   token,
+			Ip:      createMachineIP,
+			SshPort: createMachineSSHPort,
 		})
 		if err != nil {
 			return err
@@ -50,7 +61,7 @@ Requires authentication (run 'tfw login' first).`,
 			return fmt.Errorf("save machine state locally: %w", err)
 		}
 
-		fmt.Printf("Machine %q created (token: %s)\n", resp.Name, token)
+		fmt.Printf("Machine %q created (token: %s, ip: %s, ssh-port: %d)\n", resp.Name, token, resp.Ip, resp.SshPort)
 		fmt.Printf("Machine state saved to ~/.tfw/machine.json\n")
 		return nil
 	},
@@ -76,14 +87,14 @@ var listMachinesCmd = &cobra.Command{
 
 func printMachines(machines []*pb.MachineResponse) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tTOKEN\tCREATED AT")
-	fmt.Fprintln(w, "----\t-----\t----------")
+	fmt.Fprintln(w, "NAME\tIP\tSSH PORT\tTOKEN\tCREATED AT")
+	fmt.Fprintln(w, "----\t--\t--------\t-----\t----------")
 	for _, m := range machines {
 		created := "-"
 		if m.CreatedAt != nil {
 			created = m.CreatedAt.AsTime().Format(time.DateTime)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\n", m.Name, m.Token, created)
+		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\n", m.Name, m.Ip, m.SshPort, m.Token, created)
 	}
 	w.Flush()
 }

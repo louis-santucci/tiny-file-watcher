@@ -166,6 +166,10 @@ message ListWatchedFilesResponse {
 message InitializeMachineRequest {
   string name = 1;
   string token = 2;
+  string ip = 3;
+  int32 ssh_port = 4;
+  string ssh_user = 5;
+  string ssh_private_key = 6;
 }
 
 message MachineResponse {
@@ -173,6 +177,8 @@ message MachineResponse {
   string name = 2;
   google.protobuf.Timestamp created_at = 3;
   google.protobuf.Timestamp updated_at = 4;
+  string ip = 5;
+  int32 ssh_port = 6;
 }
 
 message DeleteMachineResponse {

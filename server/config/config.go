@@ -8,16 +8,25 @@ func ServerConfigValidator(settings map[string]string) error {
 	if _, ok := settings["grpc.address"]; !ok {
 		return fmt.Errorf("required setting 'grpc.address' not set")
 	}
-	err := validateDebugUiConfig(settings)
-	if err != nil {
+	if err := validateSSHConfig(settings); err != nil {
 		return err
 	}
-
-	err = validateWebConfig(settings)
-	if err != nil {
+	if err := validateDebugUiConfig(settings); err != nil {
 		return err
 	}
+	if err := validateWebConfig(settings); err != nil {
+		return err
+	}
+	return nil
+}
 
+func validateSSHConfig(settings map[string]string) error {
+	if _, ok := settings["ssh.private_keys_path"]; !ok {
+		return fmt.Errorf("required setting 'ssh.private_keys_path' not set")
+	}
+	if _, ok := settings["ssh.known_hosts_path"]; !ok {
+		return fmt.Errorf("required setting 'ssh.known_hosts_path' not set")
+	}
 	return nil
 }
 

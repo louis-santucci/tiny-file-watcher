@@ -30,11 +30,24 @@ func (s *MachineService) CreateMachine(_ context.Context, req *pb.InitializeMach
 	if req.Token == "" {
 		return nil, status.Error(codes.InvalidArgument, "token is required")
 	}
-	m, err := s.repo.CreateMachine(req.Name, req.Token)
+	if req.Ip == "" {
+		return nil, status.Error(codes.InvalidArgument, "ip is required")
+	}
+	if req.SshUser == "" {
+		return nil, status.Error(codes.InvalidArgument, "ssh_user is required")
+	}
+	if req.SshPrivateKey == "" {
+		return nil, status.Error(codes.InvalidArgument, "ssh_key is required")
+	}
+	sshPort := req.SshPort
+	if sshPort == 0 {
+		sshPort = 22
+	}
+	m, err := s.repo.CreateMachine(req.Name, req.Token, req.Ip, sshPort, req.SshUser, req.SshPrivateKey)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create machine: %v", err)
 	}
-	s.logger.Info("machine created", "name", m.Name, "token", m.Token)
+	s.logger.Info("machine created", "name", m.Name, "token", m.Token, "ip", m.IP, "ssh_port", m.SSHPort)
 	return toProto(m), nil
 }
 
@@ -67,6 +80,8 @@ func toProto(m *database.Machine) *pb.MachineResponse {
 		Name:      m.Name,
 		CreatedAt: timestamppb.New(m.CreatedAt),
 		UpdatedAt: timestamppb.New(m.UpdatedAt),
+		Ip:        m.IP,
+		SshPort:   m.SSHPort,
 	}
 }
 

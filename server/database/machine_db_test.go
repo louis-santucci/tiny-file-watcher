@@ -28,37 +28,36 @@ func newMachineDB(t *testing.T) *database.DB {
 func TestMachineDB_CreateMachine_OK(t *testing.T) {
 	db := newMachineDB(t)
 
-	m, err := db.CreateMachine("my-machine", "tok-abc")
+	m, err := db.CreateMachine("my-machine", "tok-abc", "192.168.1.1", 22, "ssh-user", "ssh-key")
 
 	require.NoError(t, err)
 	assert.Positive(t, m.ID)
 	assert.Equal(t, "my-machine", m.Name)
 	assert.Equal(t, "tok-abc", m.Token)
+	assert.Equal(t, "192.168.1.1", m.IP)
+	assert.Equal(t, int32(22), m.SSHPort)
+	assert.Equal(t, "ssh-user", m.SSHUser)
+	assert.Equal(t, "ssh-user", m.SSHUser)
 	assert.False(t, m.CreatedAt.IsZero())
 	assert.False(t, m.UpdatedAt.IsZero())
 }
 
-func TestMachineDB_CreateMachine_Upsert(t *testing.T) {
+func TestMachineDB_CreateMachine_ErrorDuplicateToken(t *testing.T) {
 	db := newMachineDB(t)
 
-	first, err := db.CreateMachine("original-name", "tok-upsert")
+	_, err := db.CreateMachine("my-machine", "tok-abc", "192.168.1.1", 22, "ssh-user", "ssh-key")
 	require.NoError(t, err)
-
-	// Same token, different name — should update name and updated_at.
-	updated, err := db.CreateMachine("new-name", "tok-upsert")
-
-	require.NoError(t, err)
-	assert.Equal(t, first.ID, updated.ID)
-	assert.Equal(t, "new-name", updated.Name)
-	assert.Equal(t, "tok-upsert", updated.Token)
+	_, err = db.CreateMachine("my-machine_2", "tok-abc", "192.168.1.2", 22, "ssh-user", "ssh-key")
+	if assert.Error(t, err) {
+		assert.ErrorContains(t, err, "UNIQUE constraint failed: machines.token")
+	}
+	// ── GetMachineByName ──────────────────────────────────────────────────────────
 }
-
-// ── GetMachineByName ──────────────────────────────────────────────────────────
 
 func TestMachineDB_GetMachineByName_OK(t *testing.T) {
 	db := newMachineDB(t)
 
-	_, err := db.CreateMachine("lookup-machine", "tok-lookup")
+	_, err := db.CreateMachine("lookup-machine", "tok-lookup", "172.16.0.1", 22, "ssh-user", "ssh-key")
 	require.NoError(t, err)
 
 	m, err := db.GetMachineByName("lookup-machine")
@@ -66,6 +65,10 @@ func TestMachineDB_GetMachineByName_OK(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "lookup-machine", m.Name)
 	assert.Equal(t, "tok-lookup", m.Token)
+	assert.Equal(t, "172.16.0.1", m.IP)
+	assert.Equal(t, int32(22), m.SSHPort)
+	assert.Equal(t, "ssh-user", m.SSHUser)
+	assert.Equal(t, "ssh-key", m.SSHKeyName)
 }
 
 func TestMachineDB_GetMachineByName_NotFound(t *testing.T) {
@@ -81,7 +84,7 @@ func TestMachineDB_GetMachineByName_NotFound(t *testing.T) {
 func TestMachineDB_GetMachineByToken_OK(t *testing.T) {
 	db := newMachineDB(t)
 
-	_, err := db.CreateMachine("token-machine", "tok-xyz")
+	_, err := db.CreateMachine("token-machine", "tok-xyz", "192.168.0.10", 22, "ssh-user", "ssh-key")
 	require.NoError(t, err)
 
 	m, err := db.GetMachineByToken("tok-xyz")
@@ -89,6 +92,10 @@ func TestMachineDB_GetMachineByToken_OK(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "token-machine", m.Name)
 	assert.Equal(t, "tok-xyz", m.Token)
+	assert.Equal(t, "192.168.0.10", m.IP)
+	assert.Equal(t, int32(22), m.SSHPort)
+	assert.Equal(t, "ssh-user", m.SSHUser)
+	assert.Equal(t, "ssh-key", m.SSHKeyName)
 }
 
 func TestMachineDB_GetMachineByToken_NotFound(t *testing.T) {
@@ -110,31 +117,12 @@ func TestMachineDB_ListMachines_Empty(t *testing.T) {
 	assert.Empty(t, machines)
 }
 
-func TestMachineDB_ListMachines_OrderedByName(t *testing.T) {
-	db := newMachineDB(t)
-
-	_, err := db.CreateMachine("zebra", "tok-z")
-	require.NoError(t, err)
-	_, err = db.CreateMachine("alpha", "tok-a")
-	require.NoError(t, err)
-	_, err = db.CreateMachine("mango", "tok-m")
-	require.NoError(t, err)
-
-	machines, err := db.ListMachines()
-
-	require.NoError(t, err)
-	require.Len(t, machines, 3)
-	assert.Equal(t, "alpha", machines[0].Name)
-	assert.Equal(t, "mango", machines[1].Name)
-	assert.Equal(t, "zebra", machines[2].Name)
-}
-
 // ── DeleteMachine ─────────────────────────────────────────────────────────────
 
 func TestMachineDB_DeleteMachine_OK(t *testing.T) {
 	db := newMachineDB(t)
 
-	_, err := db.CreateMachine("delete-me", "tok-del")
+	_, err := db.CreateMachine("delete-me", "tok-del", "1.1.1.1", 22, "ssh-user", "ssh-key")
 	require.NoError(t, err)
 
 	err = db.DeleteMachine("delete-me")

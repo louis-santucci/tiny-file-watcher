@@ -11,8 +11,8 @@ type MockMachineRepository struct {
 	mock.Mock
 }
 
-func (m *MockMachineRepository) CreateMachine(name, token string) (*database.Machine, error) {
-	args := m.Called(name, token)
+func (m *MockMachineRepository) CreateMachine(name, token, ip string, sshPort int32, sshUser string, SshPrivateKey string) (*database.Machine, error) {
+	args := m.Called(name, token, ip, sshPort, sshUser, SshPrivateKey)
 	if v := args.Get(0); v != nil {
 		return v.(*database.Machine), args.Error(1)
 	}

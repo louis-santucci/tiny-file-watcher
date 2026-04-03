@@ -31,10 +31,6 @@ type redirectionService interface {
 	GetFileRedirection(context.Context, *pb.GetFileRedirectionRequest) (*pb.FileRedirection, error)
 }
 
-type filterService interface {
-	ListFilters(context.Context, *pb.ListFiltersRequest) (*pb.ListFiltersResponse, error)
-}
-
 // Handler holds the HTTP mux and all service dependencies.
 type Handler struct {
 	mux         *http.ServeMux
@@ -42,7 +38,6 @@ type Handler struct {
 	watcherSvc  watcherService
 	flushSvc    flushService
 	redirectSvc redirectionService
-	filterSvc   filterService
 	auth        *authProvider // nil when OIDC is disabled
 	sessions    *sessionStore // nil when OIDC is disabled
 }
@@ -57,7 +52,6 @@ func New(
 	watcherSvc watcherService,
 	flushSvc flushService,
 	redirectSvc redirectionService,
-	filterSvc filterService,
 	oidcCfg OIDCConfig,
 ) (*Handler, error) {
 	funcs := template.FuncMap{"join": strings.Join}
@@ -77,7 +71,6 @@ func New(
 		watcherSvc:  watcherSvc,
 		flushSvc:    flushSvc,
 		redirectSvc: redirectSvc,
-		filterSvc:   filterSvc,
 	}
 
 	if oidcCfg.Enabled {

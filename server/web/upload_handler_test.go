@@ -86,7 +86,7 @@ func TestHandleUpload_NoFolder_FileSavedToSourcePath(t *testing.T) {
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(&pb.ListWatchersResponse{Watchers: []*pb.Watcher{enabledWatcher("alpha", srcDir)}}, nil)
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := buildUploadRequest(t, "alpha", "", "hello.txt", "world")
@@ -108,7 +108,7 @@ func TestHandleUpload_WithFolder_FileSavedToSubfolder(t *testing.T) {
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(&pb.ListWatchersResponse{Watchers: []*pb.Watcher{enabledWatcher("alpha", srcDir)}}, nil)
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := buildUploadRequest(t, "alpha", "toto", "toto.mp3", "audio")
@@ -135,7 +135,7 @@ func TestHandleUpload_SubfolderCreatedIfMissing(t *testing.T) {
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(&pb.ListWatchersResponse{Watchers: []*pb.Watcher{enabledWatcher("alpha", srcDir)}}, nil)
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := buildUploadRequest(t, "alpha", "newdir", "file.txt", "content")
@@ -156,7 +156,7 @@ func TestHandleUpload_InvalidFolder_Rejected(t *testing.T) {
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(&pb.ListWatchersResponse{Watchers: []*pb.Watcher{enabledWatcher("alpha", srcDir)}}, nil)
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := buildUploadRequest(t, "alpha", "../escape", "file.txt", "content")
@@ -172,7 +172,7 @@ func TestHandleUpload_WatcherNotFound(t *testing.T) {
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(&pb.ListWatchersResponse{Watchers: []*pb.Watcher{}}, nil)
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := buildUploadRequest(t, "missing", "", "file.txt", "content")
@@ -189,7 +189,7 @@ func TestHandleUpload_NoFiles(t *testing.T) {
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(&pb.ListWatchersResponse{Watchers: []*pb.Watcher{enabledWatcher("alpha", srcDir)}}, nil)
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	// Send a multipart form with only the folder field, no files.
@@ -213,7 +213,7 @@ func TestHandleUpload_ListWatchersError(t *testing.T) {
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(nil, errors.New("db unavailable"))
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockFilterService{}, OIDCConfig{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := buildUploadRequest(t, "alpha", "", "file.txt", "content")

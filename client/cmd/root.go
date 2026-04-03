@@ -37,7 +37,6 @@ func init() {
 	rootCmd.AddCommand(watcherCmd)
 	rootCmd.AddCommand(redirectionCmd)
 	rootCmd.AddCommand(flushCmd)
-	rootCmd.AddCommand(filterCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
 	rootCmd.AddCommand(syncWatcherCmd)

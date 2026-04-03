@@ -38,17 +38,6 @@ CREATE TABLE IF NOT EXISTS file_redirections
     updated_at   TEXT    NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS watcher_filters
-(
-    id           INTEGER PRIMARY KEY,
-    watcher_name TEXT NOT NULL REFERENCES file_watchers (name) ON DELETE CASCADE,
-    rule_type    TEXT NOT NULL CHECK (rule_type IN ('include', 'exclude')),
-    pattern_type TEXT NOT NULL CHECK (pattern_type IN ('extension', 'name', 'glob')),
-    pattern      TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_watcher_filters_name ON watcher_filters (watcher_name);
-
 -- View: all unflushed files paired with their watcher's redirection target.
 -- Files whose watcher has no redirection are excluded and remain unflushed.
 CREATE VIEW IF NOT EXISTS pending_file_flushes AS

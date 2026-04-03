@@ -31,30 +31,6 @@
 
 <hr/>
 
-<h4>Filters</h4>
-{{if .Filters}}
-<figure>
-  <table>
-    <thead>
-      <tr><th>Rule</th><th>Match by</th><th>Pattern</th></tr>
-    </thead>
-    <tbody>
-      {{range .Filters}}
-      <tr>
-        <td>{{.RuleType}}</td>
-        <td>{{.PatternType}}</td>
-        <td><code>{{.Pattern}}</code></td>
-      </tr>
-      {{end}}
-    </tbody>
-  </table>
-</figure>
-{{else}}
-<p><em>No filters configured.</em></p>
-{{end}}
-
-<hr/>
-
 <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
   <h4 style="margin:0">Pending files</h4>
   <button hx-post="/watchers/{{.Watcher.Name}}/flush"

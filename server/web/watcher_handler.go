@@ -48,7 +48,6 @@ func (h *Handler) handleWatcherList(w http.ResponseWriter, r *http.Request) {
 type watcherDetailData struct {
 	Watcher     *pb.Watcher
 	Redirection *pb.FileRedirection
-	Filters     []*pb.WatcherFilter
 	Pending     []*pb.WatchedFile
 }
 
@@ -77,10 +76,6 @@ func (h *Handler) handleWatcherDetail(w http.ResponseWriter, r *http.Request) {
 
 	if red, err := h.redirectSvc.GetFileRedirection(r.Context(), &pb.GetFileRedirectionRequest{Name: name}); err == nil {
 		data.Redirection = red
-	}
-
-	if filters, err := h.filterSvc.ListFilters(r.Context(), &pb.ListFiltersRequest{WatcherName: name}); err == nil {
-		data.Filters = filters.Filters
 	}
 
 	if pf, err := h.flushSvc.ListPendingFiles(r.Context(), &pb.ListPendingFilesRequest{Name: name}); err == nil {

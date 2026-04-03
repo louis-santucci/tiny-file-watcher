@@ -62,16 +62,3 @@ func (m *mockRedirectionService) GetFileRedirection(ctx context.Context, req *pb
 	}
 	return args.Get(0).(*pb.FileRedirection), args.Error(1)
 }
-
-// mockFilterService implements filterService.
-type mockFilterService struct {
-	mock.Mock
-}
-
-func (m *mockFilterService) ListFilters(ctx context.Context, req *pb.ListFiltersRequest) (*pb.ListFiltersResponse, error) {
-	args := m.Called(ctx, req)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*pb.ListFiltersResponse), args.Error(1)
-}

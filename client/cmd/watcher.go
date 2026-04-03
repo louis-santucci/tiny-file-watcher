@@ -28,11 +28,6 @@ func init() {
 	createWatcherCmd.Flags().StringP("path", "p", "", "Source path to watch (required)")
 	_ = createWatcherCmd.MarkFlagRequired("path")
 	createWatcherCmd.Flags().Bool("flush-existing", false, "Add files already on disk as pending (to be flushed); by default they are recorded as already flushed")
-	createWatcherCmd.Flags().StringArrayP("filter", "f", nil,
-		`Filter rule in the form rule_type:pattern_type:pattern (repeatable).
-    rule_type    : include | exclude
-    pattern_type : extension | name | glob
-    Example: --filter include:extension:.go --filter exclude:glob:*_test.go`)
 
 	// update
 	updateWatcherCmd.Flags().String("name", "", "New name for the watcher")
@@ -125,7 +120,6 @@ var createWatcherCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path, _ := cmd.Flags().GetString("path")
 		flushExisting, _ := cmd.Flags().GetBool("flush-existing")
-		filters, _ := cmd.Flags().GetStringArray("filter")
 
 		machineName, err := clientmachine.LoadMachineName()
 		if err != nil {
@@ -136,28 +130,10 @@ var createWatcherCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		var filterRequests []*pb.AddFilterRequest = make([]*pb.AddFilterRequest, 0, len(filters))
-		if len(filters) > 0 {
-			for _, f := range filters {
-				parts := strings.SplitN(f, ":", 3)
-				if len(parts) != 3 {
-					return fmt.Errorf("invalid filter format: %q", f)
-				}
-				filterRequest := &pb.AddFilterRequest{
-					WatcherName: args[0],
-					RuleType:    parts[0],
-					PatternType: parts[1],
-					Pattern:     parts[2],
-				}
-				filterRequests = append(filterRequests, filterRequest)
-			}
-		}
-
 		w, err := watcherSvc.CreateWatcher(ctx, &pb.CreateWatcherRequest{
 			Name:          args[0],
 			SourcePath:    path,
 			FlushExisting: flushExisting,
-			Filters:       filterRequests,
 			MachineName:   machineName,
 		})
 		if err != nil {

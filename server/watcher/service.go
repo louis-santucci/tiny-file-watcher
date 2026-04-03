@@ -22,16 +22,14 @@ type WatcherService struct {
 	pb.UnimplementedFileWatcherServiceServer
 	fileWatcherRepository FileWatcherRepository
 	fileRepository        FileRepository
-	filterRepository      FilterRepository
 	machineRepository     machine.MachineRepository
 	logger                *slog.Logger
 }
 
-func NewManagerService(fileWatcherRepository FileWatcherRepository, fileRepository FileRepository, filterRepository FilterRepository, machineRepository machine.MachineRepository, logger *slog.Logger) *WatcherService {
+func NewManagerService(fileWatcherRepository FileWatcherRepository, fileRepository FileRepository, machineRepository machine.MachineRepository, logger *slog.Logger) *WatcherService {
 	return &WatcherService{
 		fileWatcherRepository: fileWatcherRepository,
 		fileRepository:        fileRepository,
-		filterRepository:      filterRepository,
 		machineRepository:     machineRepository,
 		logger:                logger,
 	}
@@ -48,24 +46,21 @@ func (s *WatcherService) CreateWatcher(_ context.Context, req *pb.CreateWatcherR
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create watcher: %v", err)
 	}
-	filters := make([]*database.WatcherFilter, 0, len(req.Filters))
-	if len(req.Filters) > 0 {
-		for _, f := range req.Filters {
-			if newFilter, err := s.filterRepository.AddFilter(req.Name, f.RuleType, f.PatternType, f.Pattern); err != nil {
-				s.logger.Error("create watcher: error creating filter", "watcher", req.Name, "filter", f, "err", err)
-			} else {
-				filters = append(filters, newFilter)
-			}
-		}
-	}
 	if req.FlushExisting {
-		s.AddExistingFiles(w, filters, s.fileRepository, s.logger)
+		s.AddExistingFiles(w, s.fileRepository, s.logger)
 	}
 
 	return toProto(w), nil
 }
 
-func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, filters []*database.WatcherFilter, fileRepo FileRepository, logger *slog.Logger) {
+func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo FileRepository, logger *slog.Logger) {
+	ignorer, err := LoadIgnore(w.SourcePath, logger)
+	if err != nil {
+		logger.Error("create watcher: error loading .tfwignore", "watcher", w.Name, "path", w.SourcePath, "err", err)
+		// Default to not ignoring anything on load error
+		ignorer = noopIgnorer{}
+	}
+
 	queue := []string{w.SourcePath}
 	for len(queue) > 0 {
 		current := queue[0]
@@ -78,16 +73,17 @@ func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, filters []*da
 		}
 		for _, entry := range entries {
 			fullPath := filepath.Join(current, entry.Name())
+			if ignorer.MatchesPath(w.SourcePath, fullPath) {
+				continue
+			}
 			if entry.IsDir() {
 				queue = append(queue, fullPath) // enqueue subdirectory
 				continue
 			}
-			if Evaluate(filters, fullPath) {
-				if _, err := s.fileRepository.AddWatchedFile(w.Name, fullPath, true); err != nil {
-					s.logger.Error("create watcher: error adding file", "watcher", w.Name, "path", fullPath, "err", err)
-				}
-				s.logger.Debug("create watcher: adding file", "watcher", w.Name, "path", fullPath, "flushed", true)
+			if _, err := s.fileRepository.AddWatchedFile(w.Name, fullPath, true); err != nil {
+				s.logger.Error("create watcher: error adding file", "watcher", w.Name, "path", fullPath, "err", err)
 			}
+			s.logger.Debug("create watcher: adding file", "watcher", w.Name, "path", fullPath, "flushed", true)
 		}
 	}
 }
@@ -199,9 +195,10 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 			req.Name, w.MachineName, callerMachine.Name)
 	}
 
-	filters, err := s.filterRepository.GetFiltersForWatcher(req.Name)
+	ignorer, err := LoadIgnore(w.SourcePath, s.logger)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "load filters: %v", err)
+		s.logger.Error("sync: error loading .tfwignore", "watcher", req.Name, "path", w.SourcePath, "err", err)
+		ignorer = noopIgnorer{}
 	}
 
 	// Walk the source directory and collect all files that pass the filters.
@@ -215,12 +212,16 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 		if err != nil {
 			return nil // skip unreadable entries
 		}
+		if ignorer.MatchesPath(w.SourcePath, path) {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
 		if d.IsDir() {
 			return nil
 		}
-		if Evaluate(filters, path) {
-			onDisk.Add(path)
-		}
+		onDisk.Add(path)
 		return nil
 	})
 	if walkErr != nil {

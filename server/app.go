@@ -42,7 +42,7 @@ type App struct {
 // NewApp loads configuration, opens the database, wires up all components,
 // and returns a fully initialised App ready to Run.
 func NewApp() (*App, error) {
-	cfg := internal.InitConfig(&validator)
+	cfg := internal.InitConfig(internal.ServerConfigPath(), &validator)
 
 	if err := cfg.Load(); err != nil {
 		return nil, fmt.Errorf("load config: %w", err)

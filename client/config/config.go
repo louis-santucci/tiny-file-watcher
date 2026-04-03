@@ -17,7 +17,7 @@ var (
 func LoadClientConfig() (*config.Config, error) {
 	clientCfgOnce.Do(func() {
 		clientCfgValidator := clientConfigValidator
-		clientCfg = internal.InitConfig(&clientCfgValidator)
+		clientCfg = internal.InitConfig(internal.ClientConfigPath(), &clientCfgValidator)
 		clientCfgErr = clientCfg.Load()
 	})
 	return clientCfg, clientCfgErr

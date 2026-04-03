@@ -7,11 +7,12 @@ import (
 )
 
 const (
-	DirName          = ".tfw"
-	ConfigFileName   = "tfw.yml"
-	DatabaseFileName = "tfw.db"
-	TokensFileName   = "tokens.json"
-	MachineFileName  = "machine.json"
+	DirName              = ".tfw"
+	ServerConfigFileName = "tfws.yml"
+	ClientConfigFileName = "tfw.yml"
+	DatabaseFileName     = "tfw.db"
+	TokensFileName       = "tokens.json"
+	MachineFileName      = "machine.json"
 )
 
 func Dir() (string, error) {
@@ -22,12 +23,20 @@ func Dir() (string, error) {
 	return filepath.Join(home, DirName), nil
 }
 
-func ConfigPath() string {
+func ServerConfigPath() string {
 	dir, err := Dir()
 	if err != nil {
-		panic(fmt.Sprintf("failed to determine config path: %v", err))
+		panic(fmt.Sprintf("failed to determine server config path: %v", err))
 	}
-	return filepath.Join(dir, ConfigFileName)
+	return filepath.Join(dir, ServerConfigFileName)
+}
+
+func ClientConfigPath() string {
+	dir, err := Dir()
+	if err != nil {
+		panic(fmt.Sprintf("failed to determine client config path: %v", err))
+	}
+	return filepath.Join(dir, ClientConfigFileName)
 }
 
 func DatabasePath() string {

@@ -1,4 +1,4 @@
-package cmd
+package config
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ var (
 	clientCfgErr  error
 )
 
-func loadClientConfig() (*config.Config, error) {
+func LoadClientConfig() (*config.Config, error) {
 	clientCfgOnce.Do(func() {
 		clientCfgValidator := clientConfigValidator
 		clientCfg = internal.InitConfig(&clientCfgValidator)

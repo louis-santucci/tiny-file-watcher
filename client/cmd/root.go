@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"tiny-file-watcher/client/auth"
+	cfg2 "tiny-file-watcher/client/config"
 
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
@@ -44,7 +45,7 @@ func init() {
 }
 
 func dial() error {
-	cfg, err := loadClientConfig()
+	cfg, err := cfg2.LoadClientConfig()
 	if err != nil {
 		return fmt.Errorf("load client config: %w", err)
 	}

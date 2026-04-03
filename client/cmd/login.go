@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	cfg "tiny-file-watcher/client/config"
+
 	"tiny-file-watcher/client/auth"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
@@ -18,7 +20,7 @@ var loginCmd = &cobra.Command{
 	// Skip the PersistentPreRunE (dial) for login/logout — no gRPC needed.
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error { return nil },
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := loadClientConfig()
+		cfg, err := cfg.LoadClientConfig()
 		if err != nil {
 			return err
 		}

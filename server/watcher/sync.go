@@ -87,6 +87,11 @@ func (j *SyncJob) Run() (*SyncResult, error) {
 		j.logger.Error("failed to create SFTP client", "error", err)
 		return nil, err
 	}
+	defer client.Close()
+	if err != nil {
+		j.logger.Error("failed to create SFTP client", "error", err)
+		return nil, err
+	}
 	watchedFiles, err := j.fileRepository.ListWatchedFiles(j.watcher.Name)
 	watchedFilesSet := NewSetWithSize[string](len(watchedFiles))
 	for _, watchedFile := range watchedFiles {

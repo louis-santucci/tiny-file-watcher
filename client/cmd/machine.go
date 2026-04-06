@@ -21,14 +21,20 @@ var machineCmd = &cobra.Command{
 }
 
 var (
-	createMachineIP      string
-	createMachineSSHPort int32
+	createMachineIP         string
+	createMachineSSHPort    int32
+	createMachineSSHUser    string
+	createMachineSSHKeyPath string
 )
 
 func init() {
 	createMachineCmd.Flags().StringVar(&createMachineIP, "ip", "", "IP address of the machine (required)")
 	createMachineCmd.Flags().Int32Var(&createMachineSSHPort, "ssh-port", 22, "SSH port of the machine")
+	createMachineCmd.Flags().StringVar(&createMachineSSHUser, "ssh-user", "", "SSH user for the machine (required)")
+	createMachineCmd.Flags().StringVar(&createMachineSSHKeyPath, "ssh-key", "", "Path to the SSH private key file (required)")
 	_ = createMachineCmd.MarkFlagRequired("ip")
+	_ = createMachineCmd.MarkFlagRequired("ssh-user")
+	_ = createMachineCmd.MarkFlagRequired("ssh-key")
 
 	machineCmd.AddCommand(createMachineCmd, listMachinesCmd)
 }
@@ -38,7 +44,10 @@ var createMachineCmd = &cobra.Command{
 	Short: "Register this machine with the server",
 	Long: `Register the current machine under the given name.
 A unique token is generated and saved locally to ~/.tfw/machine.json.
-Requires authentication (run 'tfw login' first).`,
+Requires authentication (run 'tfw login' first).
+
+The --ssh-key flag must point to a local private key file (e.g. ~/.ssh/id_rsa).
+Its content is sent to the server and stored for future SSH connections.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		token := uuid.New().String()
@@ -48,10 +57,12 @@ Requires authentication (run 'tfw login' first).`,
 		defer cancel()
 
 		resp, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{
-			Name:    args[0],
-			Token:   token,
-			Ip:      createMachineIP,
-			SshPort: createMachineSSHPort,
+			Name:          args[0],
+			Token:         token,
+			Ip:            createMachineIP,
+			SshPort:       createMachineSSHPort,
+			SshUser:       createMachineSSHUser,
+			SshPrivateKey: createMachineSSHKeyPath,
 		})
 		if err != nil {
 			return err
@@ -61,7 +72,7 @@ Requires authentication (run 'tfw login' first).`,
 			return fmt.Errorf("save machine state locally: %w", err)
 		}
 
-		fmt.Printf("Machine %q created (token: %s, ip: %s, ssh-port: %d)\n", resp.Name, token, resp.Ip, resp.SshPort)
+		fmt.Printf("Machine %q created (token: %s, ip: %s, ssh-port: %d, ssh-user: %s)\n", resp.Name, token, resp.Ip, resp.SshPort, createMachineSSHUser)
 		fmt.Printf("Machine state saved to ~/.tfw/machine.json\n")
 		return nil
 	},

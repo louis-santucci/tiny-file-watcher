@@ -101,7 +101,9 @@ func TestCreateMachine_DefaultSSHPort(t *testing.T) {
 func TestCreateMachine_MissingName(t *testing.T) {
 	svc := newService(&mocks.MockMachineRepository{})
 
-	_, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{Name: "", Token: "tok-abc", Ip: "1.2.3.4"})
+	_, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{
+		Name: "", Token: "tok-abc", Ip: "1.2.3.4", SshUser: "user", SshPrivateKey: "key",
+	})
 
 	assertCode(t, err, codes.InvalidArgument)
 }
@@ -109,7 +111,9 @@ func TestCreateMachine_MissingName(t *testing.T) {
 func TestCreateMachine_MissingToken(t *testing.T) {
 	svc := newService(&mocks.MockMachineRepository{})
 
-	_, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{Name: "my-machine", Token: "", Ip: "1.2.3.4"})
+	_, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{
+		Name: "my-machine", Token: "", Ip: "1.2.3.4", SshUser: "user", SshPrivateKey: "key",
+	})
 
 	assertCode(t, err, codes.InvalidArgument)
 }
@@ -117,7 +121,29 @@ func TestCreateMachine_MissingToken(t *testing.T) {
 func TestCreateMachine_MissingIP(t *testing.T) {
 	svc := newService(&mocks.MockMachineRepository{})
 
-	_, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{Name: "my-machine", Token: "tok-abc", Ip: ""})
+	_, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{
+		Name: "my-machine", Token: "tok-abc", Ip: "", SshUser: "user", SshPrivateKey: "key",
+	})
+
+	assertCode(t, err, codes.InvalidArgument)
+}
+
+func TestCreateMachine_MissingSSHUser(t *testing.T) {
+	svc := newService(&mocks.MockMachineRepository{})
+
+	_, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{
+		Name: "my-machine", Token: "tok-abc", Ip: "1.2.3.4", SshUser: "", SshPrivateKey: "key",
+	})
+
+	assertCode(t, err, codes.InvalidArgument)
+}
+
+func TestCreateMachine_MissingSSHPrivateKey(t *testing.T) {
+	svc := newService(&mocks.MockMachineRepository{})
+
+	_, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{
+		Name: "my-machine", Token: "tok-abc", Ip: "1.2.3.4", SshUser: "user", SshPrivateKey: "",
+	})
 
 	assertCode(t, err, codes.InvalidArgument)
 }

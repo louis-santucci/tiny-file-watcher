@@ -57,6 +57,8 @@ func (j *SyncJob) Run() (*SyncResult, error) {
 		User: j.machine.SSHUser,
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
+				j.logger.Debug("private key callback: looking for key at path", "path", filepath.Join(j.sshConfig.PrivateKeysPath, j.machine.SSHKeyName))
+
 				// read private key from disk and return it as a signer
 				keyPath := filepath.Join(j.sshConfig.PrivateKeysPath, j.machine.SSHKeyName)
 				keyBytes, err := os.ReadFile(keyPath)
@@ -67,6 +69,7 @@ func (j *SyncJob) Run() (*SyncResult, error) {
 				if err != nil {
 					return nil, err
 				}
+				j.logger.Debug("private key loaded", "path", keyPath)
 				return []ssh.Signer{key}, nil
 			}),
 		},
@@ -88,10 +91,6 @@ func (j *SyncJob) Run() (*SyncResult, error) {
 		return nil, err
 	}
 	defer client.Close()
-	if err != nil {
-		j.logger.Error("failed to create SFTP client", "error", err)
-		return nil, err
-	}
 	watchedFiles, err := j.fileRepository.ListWatchedFiles(j.watcher.Name)
 	watchedFilesSet := NewSetWithSize[string](len(watchedFiles))
 	for _, watchedFile := range watchedFiles {

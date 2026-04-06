@@ -27,12 +27,13 @@ type WatcherService struct {
 	sshConfig             *config.SSHConfig
 }
 
-func NewManagerService(fileWatcherRepository database.FileWatcherRepository, fileRepository database.FileRepository, machineRepository database.MachineRepository, logger *slog.Logger) *WatcherService {
+func NewManagerService(fileWatcherRepository database.FileWatcherRepository, fileRepository database.FileRepository, machineRepository database.MachineRepository, logger *slog.Logger, sshConfig *config.SSHConfig) *WatcherService {
 	return &WatcherService{
 		fileWatcherRepository: fileWatcherRepository,
 		fileRepository:        fileRepository,
 		machineRepository:     machineRepository,
 		logger:                logger,
+		sshConfig:             sshConfig,
 	}
 }
 

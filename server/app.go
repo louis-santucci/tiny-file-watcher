@@ -62,10 +62,11 @@ func NewApp() (*App, error) {
 	// ── SSH configuration validation ──────────────────────────────────────────
 	privateKeysPath, _ := cfg.String("ssh.private_keys_path")
 	knownHostsPath, _ := cfg.String("ssh.known_hosts_path")
-	if err := config2.ValidateSSHConfig(config2.SSHConfig{
+	sshConfig := config2.SSHConfig{
 		PrivateKeysPath: privateKeysPath,
 		KnownHostsPath:  knownHostsPath,
-	}, logger); err != nil {
+	}
+	if err := config2.ValidateSSHConfig(sshConfig, logger); err != nil {
 		return nil, fmt.Errorf("ssh config: %w", err)
 	}
 
@@ -100,7 +101,7 @@ func NewApp() (*App, error) {
 		grpc.ChainStreamInterceptor(streamAuthInterceptor),
 	)
 	reflection.Register(grpcServer)
-	watcherSvc := watcher.NewManagerService(db, db, db, logger)
+	watcherSvc := watcher.NewManagerService(db, db, db, logger, &sshConfig)
 	redirectionSvc := redirection.NewRedirectionService(db, db, db, logger)
 	flushSvc := flush.NewFlushService(db, logger)
 	machineSvc := machine.NewMachineService(db, logger)

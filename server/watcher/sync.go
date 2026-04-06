@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	. "tiny-file-watcher/internal"
 	"tiny-file-watcher/server/config"
 	"tiny-file-watcher/server/database"
@@ -73,7 +74,7 @@ func (j *SyncJob) Run() (*SyncResult, error) {
 	}
 
 	// SSH into the machines and sync the files for the given watcher
-	sshUrl := j.machine.IP + ":" + string(j.machine.SSHPort)
+	sshUrl := j.machine.IP + ":" + strconv.Itoa(int(j.machine.SSHPort))
 	j.logger.Debug("sync: SSH URL: " + sshUrl)
 	conn, err := ssh.Dial("tcp", sshUrl, &sshConfig)
 	if err != nil {

@@ -101,7 +101,7 @@ func NewApp() (*App, error) {
 		grpc.ChainStreamInterceptor(streamAuthInterceptor),
 	)
 	reflection.Register(grpcServer)
-	watcherSvc := watcher.NewManagerService(db, db, db, logger, &sshConfig)
+	watcherSvc := watcher.NewManagerService(db, db, db, logger, &sshConfig, db)
 	redirectionSvc := redirection.NewRedirectionService(db, db, db, logger)
 	flushSvc := flush.NewFlushService(db, logger)
 	machineSvc := machine.NewMachineService(db, logger)

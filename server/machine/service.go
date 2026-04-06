@@ -76,12 +76,14 @@ func (s *MachineService) DeleteMachine(_ context.Context, req *pb.DeleteMachineR
 
 func toProto(m *database.Machine) *pb.MachineResponse {
 	return &pb.MachineResponse{
-		Token:     m.Token,
-		Name:      m.Name,
-		CreatedAt: timestamppb.New(m.CreatedAt),
-		UpdatedAt: timestamppb.New(m.UpdatedAt),
-		Ip:        m.IP,
-		SshPort:   m.SSHPort,
+		Token:         m.Token,
+		SshUser:       m.SSHUser,
+		SshPrivateKey: m.SSHKeyName,
+		Name:          m.Name,
+		CreatedAt:     timestamppb.New(m.CreatedAt),
+		UpdatedAt:     timestamppb.New(m.UpdatedAt),
+		Ip:            m.IP,
+		SshPort:       m.SSHPort,
 	}
 }
 

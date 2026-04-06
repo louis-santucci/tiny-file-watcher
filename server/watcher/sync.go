@@ -26,7 +26,6 @@ type SyncJob struct {
 	fileRepository    database.FileRepository
 	watcherRepository database.FileWatcherRepository
 	transactor        database.Transactor
-	ignorer           Ignorer
 }
 
 type SyncResult struct {
@@ -36,7 +35,7 @@ type SyncResult struct {
 	RemovedFiles []string
 }
 
-func NewSyncJob(logger *slog.Logger, watcher *database.FileWatcher, machine *database.Machine, sshConfig *config.SSHConfig, publicKey ssh.PublicKey, fileRepo database.FileRepository, watcherRepo database.FileWatcherRepository, transactor database.Transactor, ignorer Ignorer) *SyncJob {
+func NewSyncJob(logger *slog.Logger, watcher *database.FileWatcher, machine *database.Machine, sshConfig *config.SSHConfig, publicKey ssh.PublicKey, fileRepo database.FileRepository, watcherRepo database.FileWatcherRepository, transactor database.Transactor) *SyncJob {
 	return &SyncJob{
 		watcher:           watcher,
 		machine:           machine,
@@ -46,11 +45,10 @@ func NewSyncJob(logger *slog.Logger, watcher *database.FileWatcher, machine *dat
 		fileRepository:    fileRepo,
 		watcherRepository: watcherRepo,
 		transactor:        transactor,
-		ignorer:           ignorer,
 	}
 }
 
-func (j *SyncJob) Run() (*SyncResult, error) {
+func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
 	j.logger.Info("starting sync job")
 
 	j.logger.Debug("private key path", "path", filepath.Join(j.sshConfig.PrivateKeysPath, j.machine.SSHKeyName))
@@ -78,33 +76,38 @@ func (j *SyncJob) Run() (*SyncResult, error) {
 	// SSH into the machines and sync the files for the given watcher
 	sshUrl := j.machine.IP + ":" + strconv.Itoa(int(j.machine.SSHPort))
 	j.logger.Debug("sync: SSH URL: " + sshUrl)
-	conn, err := ssh.Dial("tcp", sshUrl, &sshConfig)
+	sshConnection, err := ssh.Dial("tcp", sshUrl, &sshConfig)
 	if err != nil {
 		j.logger.Error("failed to connect to machine", "error", err)
 		return nil, err
 	}
-	defer conn.Close()
-	client, err := sftp.NewClient(conn)
+	defer sshConnection.Close()
+	sftpClient, err := sftp.NewClient(sshConnection)
 	if err != nil {
-		j.logger.Error("failed to create SFTP client", "error", err)
+		j.logger.Error("failed to create SFTP sftpClient", "error", err)
 		return nil, err
 	}
-	defer client.Close()
+	defer sftpClient.Close()
 	watchedFiles, err := j.fileRepository.ListWatchedFiles(j.watcher.Name)
 	watchedFilesSet := NewSetWithSize[string](len(watchedFiles))
 	for _, watchedFile := range watchedFiles {
 		watchedFilesSet.Add(watchedFile.FilePath)
 	}
 
+	ignorer, err := LoadIgnore(*sftpClient, j.watcher.SourcePath, j.logger)
+	if err != nil {
+		j.logger.Error("sync: error loading .tfwignore", "watcher", j.watcher.Name, "path", j.watcher.SourcePath, "err", err)
+		ignorer = noopIgnorer{}
+	}
+
 	if err != nil {
 		j.logger.Error("failed to list watched files", "error", err)
 		return nil, err
 	}
-	// walk the source path and check if the file exists in the db for this watcher, if not, create it, if yes, do nothing
-	w := client.Walk(j.watcher.SourcePath)
+
 	// using batch of results, check in db if file exists for this file watcher, if not, create it, if yes, do nothing
 
-	onDisk, addedFiles, err := j.handleCurrentPaths(w, watchedFilesSet)
+	onDisk, addedFiles, err := j.handleCurrentPaths(sftpClient, watchedFilesSet, ignorer)
 	if err != nil {
 		j.logger.Error("sync: error handling current paths", "error", err, "watcher", j.watcher.Name)
 		return nil, err
@@ -120,24 +123,9 @@ func (j *SyncJob) Run() (*SyncResult, error) {
 
 	// bulk insert new files
 	// bulk remove deleted files
-
-	err = j.transactor.WithTransaction(context.Background(), func(repo database.TransactionalFileRepository) error {
-		if len(*addedFiles) > 0 {
-			_, err := repo.BulkAddWatchedFiles(j.watcher.Name, *addedFiles, false)
-			if err != nil {
-				return err
-			}
-		}
-		if len(removedFiles) > 0 {
-			err := repo.BulkRemoveWatchedFiles(j.watcher.Name, removedFiles)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	err = j.saveUpdates(*addedFiles, removedFiles, flush)
 	if err != nil {
-		j.logger.Error("sync: database error on update", "error", err, "watcher", j.watcher.Name)
+		j.logger.Error("sync: error saving updates to database", "error", err, "watcher", j.watcher.Name)
 		return nil, err
 	}
 
@@ -153,28 +141,58 @@ func (j *SyncJob) Run() (*SyncResult, error) {
 	return results, nil
 }
 
-func (j *SyncJob) handleCurrentPaths(w *fs.Walker, watchedFilesSet *Set[string]) (*Set[string], *map[string]string, error) {
+func (j *SyncJob) saveUpdates(addedFiles map[string]string, removedFiles []string, flush bool) error {
+	err := j.transactor.WithTransaction(context.Background(), func(repo database.TransactionalFileRepository) error {
+		if len(addedFiles) > 0 {
+			_, err := repo.BulkAddWatchedFiles(j.watcher.Name, addedFiles, flush)
+			if err != nil {
+				return err
+			}
+		}
+		if len(removedFiles) > 0 {
+			err := repo.BulkRemoveWatchedFiles(j.watcher.Name, removedFiles)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		j.logger.Error("sync: database error on update", "error", err, "watcher", j.watcher.Name)
+		return err
+	}
+	return nil
+}
+
+func (j *SyncJob) handleCurrentPaths(client *sftp.Client, watchedFilesSet *Set[string], ignorer Ignorer) (*Set[string], *map[string]string, error) {
 	onDisk := NewSet[string]()
 	addedFiles := make(map[string]string)
-	for w.Step() {
-		if w.Err() != nil {
-			j.logger.Error("sync: error walking source path", "error", w.Err(), "watcher", j.watcher.Name, "path", w.Path())
-			continue
+
+	// walk the source path and check if the file exists in the db for this watcher, if not, create it, if yes, do nothing
+	queue := []*fs.Walker{client.Walk(j.watcher.SourcePath)}
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		for current.Step() {
+			if current.Err() != nil {
+				j.logger.Error("sync: error walking source path", "error", current.Err(), "watcher", j.watcher.Name, "path", current.Path())
+				continue
+			}
+			if current.Stat().IsDir() {
+				queue = append(queue, client.Walk(current.Path())) // enqueue subdirectory
+				continue
+			}
+			if ignorer.MatchesPath(j.watcher.SourcePath, current.Path()) {
+				j.logger.Debug("sync: skipping ignored file (.tfwignore rule)", "path", current.Path(), "watcher", j.watcher.Name)
+				continue
+			}
+			if !watchedFilesSet.Contains(current.Path()) {
+				j.logger.Debug("sync: adding new watched file", "path", current.Path())
+				filename := filepath.Base(current.Path())
+				addedFiles[filename] = current.Path()
+			}
+			onDisk.Add(current.Path())
 		}
-		if w.Stat().IsDir() {
-			j.logger.Debug("sync: skipping directory", "path", w.Path(), "watcher", j.watcher.Name)
-			continue
-		}
-		if j.ignorer.MatchesPath(j.watcher.SourcePath, w.Path()) {
-			j.logger.Debug("sync: skipping ignored file", "path", w.Path(), "watcher", j.watcher.Name)
-			continue
-		}
-		if !watchedFilesSet.Contains(w.Path()) {
-			j.logger.Debug("sync: adding new watched file", "path", w.Path())
-			filename := filepath.Base(w.Path())
-			addedFiles[filename] = w.Path()
-		}
-		onDisk.Add(w.Path())
 	}
 
 	return onDisk, &addedFiles, nil

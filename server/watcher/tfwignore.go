@@ -1,12 +1,14 @@
 package watcher
 
 import (
+	"bufio"
 	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/pkg/sftp"
 	gitignore "github.com/sabhiram/go-gitignore"
 )
 
@@ -20,24 +22,27 @@ type Ignorer interface {
 	MatchesPath(root, absPath string) bool
 }
 
-// LoadIgnore reads the .tfwignore file located at the root of the watcher's
-// source directory and returns an Ignorer that applies its rules.
-//
-// If the file does not exist, a no-op Ignorer is returned (every file is
-// accepted) and a DEBUG log entry is emitted.  Any other I/O error is
-// returned to the caller.
-func LoadIgnore(root string, logger *slog.Logger) (Ignorer, error) {
-	ignoreFile := filepath.Join(root, ignoreFileName)
-
-	compiled, err := gitignore.CompileIgnoreFile(ignoreFile)
+// LoadIgnore loads the .tfwignore file at the given path and returns an Ignorer
+// that can be used to check whether files should be ignored.  If the file does
+// not exist, a noop Ignorer is returned that accepts all files.
+func LoadIgnore(client sftp.Client, path string, logger *slog.Logger) (Ignorer, error) {
+	ignoreFile, err := client.OpenFile(path, os.O_RDONLY)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			logger.Debug("no .tfwignore found, all files accepted", "root", root)
+			logger.Debug("no .tfwignore found, all files accepted", "path", path)
 			return noopIgnorer{}, nil
 		}
-		return nil, err
 	}
 
+	defer ignoreFile.Close()
+	lines := []string{}
+	fileScanner := bufio.NewScanner(ignoreFile)
+	for fileScanner.Scan() {
+		line := fileScanner.Text()
+		lines = append(lines, line)
+	}
+
+	compiled := gitignore.CompileIgnoreLines(lines...)
 	return &fileIgnorer{compiled: compiled}, nil
 }
 

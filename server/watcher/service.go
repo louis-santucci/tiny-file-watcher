@@ -57,13 +57,6 @@ func (s *WatcherService) CreateWatcher(_ context.Context, req *pb.CreateWatcherR
 }
 
 func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo database.FileRepository, logger *slog.Logger) {
-	ignorer, err := LoadIgnore(w.SourcePath, logger)
-	if err != nil {
-		logger.Error("create watcher: error loading .tfwignore", "watcher", w.Name, "path", w.SourcePath, "err", err)
-		// Default to not ignoring anything on load error
-		ignorer = noopIgnorer{}
-	}
-
 	queue := []string{w.SourcePath}
 	for len(queue) > 0 {
 		current := queue[0]
@@ -76,9 +69,6 @@ func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo data
 		}
 		for _, entry := range entries {
 			fullPath := filepath.Join(current, entry.Name())
-			if ignorer.MatchesPath(w.SourcePath, fullPath) {
-				continue
-			}
 			if entry.IsDir() {
 				queue = append(queue, fullPath) // enqueue subdirectory
 				continue
@@ -198,21 +188,15 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 			req.Name, w.MachineName, callerMachine.Name)
 	}
 
-	ignorer, err := LoadIgnore(w.SourcePath, s.logger)
-	if err != nil {
-		s.logger.Error("sync: error loading .tfwignore", "watcher", req.Name, "path", w.SourcePath, "err", err)
-		ignorer = noopIgnorer{}
-	}
-
 	remoteMachine, err := s.machineRepository.GetMachineByName(w.MachineName)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "fetch machine for watcher: %v", err)
 	}
 
 	var publicKey ssh.PublicKey
-	syncJob := NewSyncJob(s.logger, w, remoteMachine, s.sshConfig, publicKey, s.fileRepository, s.fileWatcherRepository, s.transactor, ignorer)
+	syncJob := NewSyncJob(s.logger, w, remoteMachine, s.sshConfig, publicKey, s.fileRepository, s.fileWatcherRepository, s.transactor)
 
-	result, err := syncJob.Run()
+	result, err := syncJob.Run(false)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "sync watcher: %v", err)
 	}

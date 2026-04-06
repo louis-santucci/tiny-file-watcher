@@ -98,14 +98,14 @@ var listMachinesCmd = &cobra.Command{
 
 func printMachines(machines []*pb.MachineResponse) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tIP\tSSH PORT\tTOKEN\tCREATED AT")
-	fmt.Fprintln(w, "----\t--\t--------\t-----\t----------")
+	fmt.Fprintln(w, "NAME\tIP\tSSH PORT\tSSH USER\tSSH PRIVATE KEY PATH\tTOKEN\tCREATED AT")
+	fmt.Fprintln(w, "----\t--\t--------\t--------\t--------------------\t-----\t----------")
 	for _, m := range machines {
 		created := "-"
 		if m.CreatedAt != nil {
 			created = m.CreatedAt.AsTime().Format(time.DateTime)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\n", m.Name, m.Ip, m.SshPort, m.Token, created)
+		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\t%s\n", m.Name, m.Ip, m.SshPort, m.SshUser, m.SshPrivateKey, m.Token, created)
 	}
 	w.Flush()
 }

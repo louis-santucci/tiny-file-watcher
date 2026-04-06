@@ -179,6 +179,8 @@ message MachineResponse {
   google.protobuf.Timestamp updated_at = 4;
   string ip = 5;
   int32 ssh_port = 6;
+  string ssh_user = 7;
+  string ssh_private_key = 8;
 }
 
 message DeleteMachineResponse {

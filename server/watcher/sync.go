@@ -35,8 +35,10 @@ type SyncResult struct {
 	RemovedFiles []string
 }
 
-func NewSyncJob(logger *slog.Logger, sshConfig *config.SSHConfig, publicKey ssh.PublicKey, fileRepo database.FileRepository, watcherRepo database.FileWatcherRepository, transactor database.Transactor, ignorer Ignorer) *SyncJob {
+func NewSyncJob(logger *slog.Logger, watcher *database.FileWatcher, machine *database.Machine, sshConfig *config.SSHConfig, publicKey ssh.PublicKey, fileRepo database.FileRepository, watcherRepo database.FileWatcherRepository, transactor database.Transactor, ignorer Ignorer) *SyncJob {
 	return &SyncJob{
+		watcher:           watcher,
+		machine:           machine,
 		logger:            logger,
 		sshConfig:         sshConfig,
 		publicKey:         publicKey,
@@ -50,7 +52,7 @@ func NewSyncJob(logger *slog.Logger, sshConfig *config.SSHConfig, publicKey ssh.
 func (j *SyncJob) Run() (*SyncResult, error) {
 	j.logger.Info("starting sync job")
 
-	var sshConfig ssh.ClientConfig = ssh.ClientConfig{
+	var sshConfig = ssh.ClientConfig{
 		User: j.machine.SSHUser,
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {

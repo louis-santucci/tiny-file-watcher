@@ -202,8 +202,13 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 		ignorer = noopIgnorer{}
 	}
 
+	remoteMachine, err := s.machineRepository.GetMachineByName(w.MachineName)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "fetch machine for watcher: %v", err)
+	}
+
 	var publicKey ssh.PublicKey
-	syncJob := NewSyncJob(s.logger, s.sshConfig, publicKey, s.fileRepository, s.fileWatcherRepository, s.transactor, ignorer)
+	syncJob := NewSyncJob(s.logger, w, remoteMachine, s.sshConfig, publicKey, s.fileRepository, s.fileWatcherRepository, s.transactor, ignorer)
 
 	result, err := syncJob.Run()
 	if err != nil {

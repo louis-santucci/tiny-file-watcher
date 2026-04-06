@@ -74,6 +74,7 @@ func (j *SyncJob) Run() (*SyncResult, error) {
 
 	// SSH into the machines and sync the files for the given watcher
 	sshUrl := j.machine.IP + ":" + string(j.machine.SSHPort)
+	j.logger.Debug("sync: SSH URL: " + sshUrl)
 	conn, err := ssh.Dial("tcp", sshUrl, &sshConfig)
 	if err != nil {
 		j.logger.Error("failed to connect to machine", "error", err)

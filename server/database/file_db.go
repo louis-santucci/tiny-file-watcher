@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -26,6 +27,26 @@ type PendingFlush struct {
 	TargetPath    string
 }
 
+func (db *DB) WithTransaction(ctx context.Context, fn func(tx TransactionalFileRepository) error) error {
+	tx, err := db.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			_ = tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	txDB := &TxDB{tx: tx}
+	if err := fn(txDB); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}
+
 // AddWatchedFile inserts a newly detected file.
 // filePath is the full path to the file; file_path in the DB stores only the parent directory.
 func (db *DB) AddWatchedFile(watcherName string, filePath string, flushed bool) (*WatchedFile, error) {
@@ -46,6 +67,66 @@ func (db *DB) AddWatchedFile(watcherName string, filePath string, flushed bool) 
 	return &WatchedFile{ID: id, WatcherName: watcherName, FilePath: parentDir, DetectedAt: now, Flushed: flushed}, nil
 }
 
+// BulkAddWatchedFiles inserts multiple watched files in a single INSERT statement.
+// files is a map of file name to full file path. Returns early with a warning if the map is empty.
+func (db *DB) BulkAddWatchedFiles(watcherName string, files map[string]string, flushed bool) ([]*WatchedFile, error) {
+	if len(files) == 0 {
+		slog.Warn("no files to bulk insert")
+		return nil, nil
+	}
+
+	now := time.Now().UTC()
+	nowStr := now.Format(time.RFC3339)
+
+	placeholders := make([]string, 0, len(files))
+	args := make([]interface{}, 0, len(files)*5)
+
+	// Collect entries to rebuild results after insert (map iteration order is fine; callers use ElementsMatch).
+	type entry struct {
+		name      string
+		parentDir string
+	}
+	entries := make([]entry, 0, len(files))
+
+	for name, path := range files {
+		parentDir := filepath.Dir(path)
+		placeholders = append(placeholders, "(?,?,?,?,?)")
+		args = append(args, watcherName, parentDir, name, flushed, nowStr)
+		entries = append(entries, entry{name: name, parentDir: parentDir})
+	}
+
+	query := "INSERT INTO watched_files (watcher_name, file_path, file_name, flushed, detected_at) VALUES " +
+		strings.Join(placeholders, ",")
+
+	result, err := db.conn.Exec(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("bulk add watched files: %w", err)
+	}
+
+	lastID, err := result.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("bulk add watched files: get last insert id: %w", err)
+	}
+
+	// SQLite assigns sequential IDs for a multi-row INSERT; the first inserted row
+	// gets lastID - N + 1, the last gets lastID, in the same order as the VALUES list.
+	n := int64(len(entries))
+	firstID := lastID - n + 1
+
+	watchedFiles := make([]*WatchedFile, len(entries))
+	for i, e := range entries {
+		watchedFiles[i] = &WatchedFile{
+			ID:          firstID + int64(i),
+			WatcherName: watcherName,
+			FilePath:    filepath.Join(e.parentDir, e.name),
+			Flushed:     flushed,
+			DetectedAt:  now,
+		}
+	}
+
+	return watchedFiles, nil
+}
+
 // RemoveWatchedFile deletes the entry for a given watcher and full file path.
 func (db *DB) RemoveWatchedFile(watcherName string, filePath string) error {
 	fileName := filepath.Base(filePath)
@@ -55,6 +136,32 @@ func (db *DB) RemoveWatchedFile(watcherName string, filePath string) error {
 		watcherName, parentDir, fileName,
 	)
 	return err
+}
+
+// BulkRemoveWatchedFiles deletes multiple watched files for a given watcher in a single DELETE statement.
+// filePaths are full file paths. Returns early with a warning if the slice is empty.
+func (db *DB) BulkRemoveWatchedFiles(watcherName string, filePaths []string) error {
+	if len(filePaths) == 0 {
+		slog.Warn("no files to bulk delete")
+		return nil
+	}
+
+	conditions := make([]string, len(filePaths))
+	args := make([]interface{}, 0, 1+len(filePaths)*2)
+	args = append(args, watcherName)
+
+	for i, fp := range filePaths {
+		conditions[i] = "(file_path=? AND file_name=?)"
+		args = append(args, filepath.Dir(fp), filepath.Base(fp))
+	}
+
+	query := "DELETE FROM watched_files WHERE watcher_name=? AND (" + strings.Join(conditions, " OR ") + ")"
+
+	_, err := db.conn.Exec(query, args...)
+	if err != nil {
+		return fmt.Errorf("bulk remove watched files: %w", err)
+	}
+	return nil
 }
 
 // ListWatchedFiles returns all unflushed watched files for the given watcher.

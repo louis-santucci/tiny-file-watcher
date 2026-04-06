@@ -2,31 +2,32 @@ package watcher
 
 import (
 	"context"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"tiny-file-watcher/internal"
+	"tiny-file-watcher/server/config"
 
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	pb "tiny-file-watcher/gen/grpc"
 	"tiny-file-watcher/server/database"
-	"tiny-file-watcher/server/machine"
 )
 
 // WatcherService implements the FileWatcherService gRPC server.
 type WatcherService struct {
 	pb.UnimplementedFileWatcherServiceServer
-	fileWatcherRepository FileWatcherRepository
-	fileRepository        FileRepository
-	machineRepository     machine.MachineRepository
+	fileWatcherRepository database.FileWatcherRepository
+	fileRepository        database.FileRepository
+	machineRepository     database.MachineRepository
+	transactor            database.Transactor
 	logger                *slog.Logger
+	sshConfig             *config.SSHConfig
 }
 
-func NewManagerService(fileWatcherRepository FileWatcherRepository, fileRepository FileRepository, machineRepository machine.MachineRepository, logger *slog.Logger) *WatcherService {
+func NewManagerService(fileWatcherRepository database.FileWatcherRepository, fileRepository database.FileRepository, machineRepository database.MachineRepository, logger *slog.Logger) *WatcherService {
 	return &WatcherService{
 		fileWatcherRepository: fileWatcherRepository,
 		fileRepository:        fileRepository,
@@ -53,7 +54,7 @@ func (s *WatcherService) CreateWatcher(_ context.Context, req *pb.CreateWatcherR
 	return toProto(w), nil
 }
 
-func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo FileRepository, logger *slog.Logger) {
+func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo database.FileRepository, logger *slog.Logger) {
 	ignorer, err := LoadIgnore(w.SourcePath, logger)
 	if err != nil {
 		logger.Error("create watcher: error loading .tfwignore", "watcher", w.Name, "path", w.SourcePath, "err", err)
@@ -201,79 +202,19 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 		ignorer = noopIgnorer{}
 	}
 
-	// Walk the source directory and collect all files that pass the filters.
-	onDisk := internal.NewSet[string]()
-	walkErr := filepath.WalkDir(w.SourcePath, func(path string, d fs.DirEntry, err error) error {
-		s.logger.Debug("sync: walking path", "watcher", req.Name, "path", path)
-		if d == nil {
-			s.logger.Warn("sync: dir entry is nil, skipping path", "watcher", req.Name, "path", path, "err", err)
-			return nil
-		}
-		if err != nil {
-			return nil // skip unreadable entries
-		}
-		if ignorer.MatchesPath(w.SourcePath, path) {
-			if d.IsDir() {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if d.IsDir() {
-			return nil
-		}
-		onDisk.Add(path)
-		return nil
-	})
-	if walkErr != nil {
-		return nil, status.Errorf(codes.Internal, "walk source path: %v", walkErr)
-	}
+	var publicKey ssh.PublicKey
+	syncJob := NewSyncJob(s.logger, s.sshConfig, publicKey, s.fileRepository, s.fileWatcherRepository, s.transactor, ignorer)
 
-	// Load current watched files from DB.
-	existing, err := s.fileRepository.ListWatchedFiles(req.Name)
+	result, err := syncJob.Run()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list watched files: %v", err)
+		return nil, status.Errorf(codes.Internal, "sync watcher: %v", err)
 	}
-	dbEntries := internal.NewSetWithSize[string](len(existing))
-	for _, f := range existing {
-		dbEntries.Add(f.FilePath)
-	}
-
-	var addedFiles, removedFiles []string
-
-	// Add files that are on disk but not in the DB.
-	diskItems := onDisk.Items()
-	for i := range len(diskItems) {
-		path := diskItems[i]
-		if exists := dbEntries.Contains(path); !exists {
-			if _, err := s.fileRepository.AddWatchedFile(req.Name, path, false); err != nil {
-				s.logger.Error("sync: error adding file", "watcher", req.Name, "path", path, "err", err)
-				continue
-			}
-			addedFiles = append(addedFiles, path)
-			s.logger.Debug("sync: added file", "watcher", req.Name, "path", path, "flushed", false)
-		}
-	}
-
-	// Remove DB entries for files no longer on disk.
-	dbItems := dbEntries.Items()
-	for i := range len(dbItems) {
-		path := dbItems[i]
-		if exists := onDisk.Contains(path); !exists {
-			if err := s.fileRepository.RemoveWatchedFile(req.Name, path); err != nil {
-				s.logger.Error("sync: error removing file", "watcher", req.Name, "path", path, "err", err)
-				continue
-			}
-			removedFiles = append(removedFiles, path)
-		}
-	}
-
-	s.logger.Info("sync complete", "watcher", req.Name, "machine", callerMachine.Name, "added", len(addedFiles), "removed", len(removedFiles))
 
 	return &pb.SyncWatcherResponse{
-		AddedCount:   int64(len(addedFiles)),
-		RemovedCount: int64(len(removedFiles)),
-		AddedFiles:   addedFiles,
-		RemovedFiles: removedFiles,
+		AddedCount:   int64(result.AddedCount),
+		RemovedCount: int64(result.RemovedCount),
+		AddedFiles:   result.AddedFiles,
+		RemovedFiles: result.RemovedFiles,
 	}, nil
 }
 

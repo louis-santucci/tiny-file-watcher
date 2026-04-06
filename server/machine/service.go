@@ -15,11 +15,11 @@ import (
 // MachineService implements the MachineService gRPC server.
 type MachineService struct {
 	pb.UnimplementedMachineServiceServer
-	repo   MachineRepository
+	repo   database.MachineRepository
 	logger *slog.Logger
 }
 
-func NewMachineService(repo MachineRepository, logger *slog.Logger) *MachineService {
+func NewMachineService(repo database.MachineRepository, logger *slog.Logger) *MachineService {
 	return &MachineService{repo: repo, logger: logger}
 }
 

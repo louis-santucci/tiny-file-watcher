@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // SSHConfig holds the resolved SSH configuration paths.
@@ -50,6 +51,9 @@ func checkKeyPermissions(dirPath string, logger *slog.Logger) error {
 			return err
 		}
 		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(filepath.Base(path), "key") {
 			return nil
 		}
 

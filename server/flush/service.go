@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"tiny-file-watcher/server/database"
 
 	pb "tiny-file-watcher/gen/grpc"
 
@@ -17,11 +18,11 @@ import (
 // FlushService implements the FileFlushService gRPC server.
 type FlushService struct {
 	pb.UnimplementedFileFlushServiceServer
-	flushRepository FlushRepository
+	flushRepository database.FlushRepository
 	logger          *slog.Logger
 }
 
-func NewFlushService(flushRepository FlushRepository, logger *slog.Logger) *FlushService {
+func NewFlushService(flushRepository database.FlushRepository, logger *slog.Logger) *FlushService {
 	return &FlushService{flushRepository: flushRepository, logger: logger}
 }
 

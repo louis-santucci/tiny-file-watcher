@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"tiny-file-watcher/server/config"
 
 	"golang.org/x/crypto/ssh"
@@ -28,6 +29,10 @@ type WatcherService struct {
 	// syncJobOpts are forwarded to every SyncJob created by this service.
 	// Used in tests to inject a local RemoteFS and bypass SSH.
 	syncJobOpts []SyncJobOption
+	// syncLocks holds a *sync.Mutex per watcher name.  It ensures that only
+	// one sync (SyncWatcher or StreamSyncWatcher) runs at a time for a given
+	// watcher.  Entries are created on first use and never removed.
+	syncLocks sync.Map
 }
 
 // WatcherServiceOption is a functional option for WatcherService.
@@ -54,6 +59,19 @@ func NewManagerService(fileWatcherRepository database.FileWatcherRepository, fil
 		opt(svc)
 	}
 	return svc
+}
+
+// tryAcquireSyncLock attempts to acquire the per-watcher sync lock for name.
+// If the lock is free it is acquired and the caller must invoke the returned
+// unlock function when the sync is complete.  If the lock is already held by
+// another sync, ok is false and unlock is nil.
+func (s *WatcherService) tryAcquireSyncLock(name string) (unlock func(), ok bool) {
+	v, _ := s.syncLocks.LoadOrStore(name, &sync.Mutex{})
+	mu := v.(*sync.Mutex)
+	if !mu.TryLock() {
+		return nil, false
+	}
+	return mu.Unlock, true
 }
 
 func (s *WatcherService) CreateWatcher(_ context.Context, req *pb.CreateWatcherRequest) (*pb.Watcher, error) {
@@ -192,6 +210,12 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 			req.Name, w.MachineName, callerMachine.Name)
 	}
 
+	unlock, ok := s.tryAcquireSyncLock(req.Name)
+	if !ok {
+		return nil, status.Errorf(codes.AlreadyExists, "sync already in progress for watcher %q", req.Name)
+	}
+	defer unlock()
+
 	var publicKey ssh.PublicKey
 	syncJob := NewSyncJob(s.logger, w, callerMachine, s.sshConfig, publicKey, s.fileRepository, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
 
@@ -234,6 +258,12 @@ func (s *WatcherService) StreamSyncWatcher(req *pb.SyncWatcherRequest, stream gr
 			"watcher %q belongs to machine %q, but request comes from machine %q",
 			req.Name, w.MachineName, callerMachine.Name)
 	}
+
+	unlock, ok := s.tryAcquireSyncLock(req.Name)
+	if !ok {
+		return status.Errorf(codes.AlreadyExists, "sync already in progress for watcher %q", req.Name)
+	}
+	defer unlock()
 
 	// sendLog forwards a human-readable progress message to the client as a
 	// LOG event.  Errors are returned so the caller can abort early.

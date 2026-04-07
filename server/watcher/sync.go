@@ -48,7 +48,7 @@ func NewSyncJob(logger *slog.Logger, watcher *database.FileWatcher, machine *dat
 	}
 }
 
-func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
+func (j *SyncJob) Run(ctx context.Context, flush bool) (*SyncResult, error) {
 	j.logger.Info("starting sync job")
 
 	j.logger.Debug("private key path", "path", filepath.Join(j.sshConfig.PrivateKeysPath, j.machine.SSHKeyName))
@@ -179,6 +179,7 @@ func (j *SyncJob) handleCurrentPaths(client *sftp.Client, watchedFilesSet *Set[s
 				continue
 			}
 			if current.Stat().IsDir() {
+				j.logger.Debug("sync: adding subdirectory", "path", current.Path(), "watcher", j.watcher.Name)
 				queue = append(queue, client.Walk(current.Path())) // enqueue subdirectory
 				continue
 			}

@@ -60,7 +60,7 @@ func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo data
 		logger.Error("fetch machine for watcher", "machine_name", w.MachineName, "error", err)
 	}
 	syncJob := NewSyncJob(logger, w, machine, s.sshConfig, nil, fileRepo, s.fileWatcherRepository, s.transactor)
-	if _, err := syncJob.Run(true); err != nil {
+	if _, err := syncJob.Run(context.Background(), true); err != nil {
 		logger.Error("add existing files for watcher", "watcher_name", w.Name, "error", err)
 	}
 }
@@ -148,7 +148,7 @@ func (s *WatcherService) DeleteWatcher(_ context.Context, req *pb.DeleteWatcherR
 // SyncWatcher walks the watcher's source_path, diffs against the current
 // unflushed watched_files in the DB, and adds/removes entries accordingly.
 // It validates that the caller's machine (identified by token) owns the watcher.
-func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherRequest) (*pb.SyncWatcherResponse, error) {
+func (s *WatcherService) SyncWatcher(ctx context.Context, req *pb.SyncWatcherRequest) (*pb.SyncWatcherResponse, error) {
 	if req.Name == "" {
 		return nil, status.Error(codes.InvalidArgument, "name is required")
 	}
@@ -180,7 +180,7 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 	var publicKey ssh.PublicKey
 	syncJob := NewSyncJob(s.logger, w, remoteMachine, s.sshConfig, publicKey, s.fileRepository, s.fileWatcherRepository, s.transactor)
 
-	result, err := syncJob.Run(false)
+	result, err := syncJob.Run(ctx, false)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "sync watcher: %v", err)
 	}

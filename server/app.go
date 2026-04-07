@@ -25,7 +25,6 @@ import (
 	"github.com/ridgelines/go-config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -100,17 +99,6 @@ func NewApp() (*App, error) {
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(interceptor.UnaryLoggingInterceptor, unaryAuth),
 		grpc.ChainStreamInterceptor(streamAuthInterceptor),
-		grpc.KeepaliveParams(keepalive.ServerParameters{
-			MaxConnectionIdle:     30 * time.Minute,
-			MaxConnectionAge:      60 * time.Minute,
-			MaxConnectionAgeGrace: 5 * time.Minute,
-			Time:                  1 * time.Minute,
-			Timeout:               20 * time.Second,
-		}),
-		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
-			MinTime:             30 * time.Second,
-			PermitWithoutStream: true,
-		}),
 	)
 	reflection.Register(grpcServer)
 	watcherSvc := watcher.NewManagerService(db, db, db, logger, &sshConfig, db)

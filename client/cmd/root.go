@@ -3,14 +3,12 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"time"
 	"tiny-file-watcher/client/auth"
 	cfg2 "tiny-file-watcher/client/config"
 
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/keepalive"
 )
 
 var conn *grpc.ClientConn
@@ -52,12 +50,6 @@ func dial() error {
 	}
 
 	var opts []grpc.DialOption
-
-	opts = append(opts, grpc.WithKeepaliveParams(keepalive.ClientParameters{
-		Time:                1 * time.Minute,
-		Timeout:             20 * time.Second,
-		PermitWithoutStream: true,
-	}))
 
 	oidcEnabled, _ := cfg.Bool("oidc.enabled")
 	if oidcEnabled {

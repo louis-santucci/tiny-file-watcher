@@ -22,7 +22,7 @@ var syncWatcherCmd = &cobra.Command{
 		}
 
 		svc := pb.NewFileWatcherServiceClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{

@@ -31,7 +31,7 @@ func TestHandleDashboard_Success(t *testing.T) {
 	flushSvc.On("ListPendingFiles", mock.Anything, &pb.ListPendingFilesRequest{Name: "beta"}).
 		Return(&pb.ListPendingFilesResponse{Files: nil}, nil)
 
-	h, err := New(watcherSvc, flushSvc, &mockRedirectionService{}, OIDCConfig{})
+	h, err := New(watcherSvc, flushSvc, &mockRedirectionService{}, &mockMachineService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -49,7 +49,7 @@ func TestHandleDashboard_ListWatchersError(t *testing.T) {
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(nil, errors.New("db down"))
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, OIDCConfig{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockMachineService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -70,7 +70,7 @@ func TestHandleDashboard_PendingFilesErrorIsIgnored(t *testing.T) {
 	flushSvc.On("ListPendingFiles", mock.Anything, mock.Anything).
 		Return(nil, errors.New("flush unavailable"))
 
-	h, err := New(watcherSvc, flushSvc, &mockRedirectionService{}, OIDCConfig{})
+	h, err := New(watcherSvc, flushSvc, &mockRedirectionService{}, &mockMachineService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -91,7 +91,7 @@ func TestHandleWatcherList_Success(t *testing.T) {
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(&pb.ListWatchersResponse{Watchers: watchers}, nil)
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, OIDCConfig{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockMachineService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/watchers", nil)
@@ -108,7 +108,7 @@ func TestHandleWatcherList_ServiceError(t *testing.T) {
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(nil, errors.New("connection refused"))
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, OIDCConfig{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockMachineService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/watchers", nil)
@@ -136,7 +136,7 @@ func TestHandleWatcherDetail_Success(t *testing.T) {
 	flushSvc.On("ListPendingFiles", mock.Anything, &pb.ListPendingFilesRequest{Name: "alpha"}).
 		Return(&pb.ListPendingFilesResponse{Files: []*pb.WatchedFile{{FileName: "main.go"}}}, nil)
 
-	h, err := New(watcherSvc, flushSvc, redirectSvc, OIDCConfig{})
+	h, err := New(watcherSvc, flushSvc, redirectSvc, &mockMachineService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/watchers/alpha", nil)
@@ -156,7 +156,7 @@ func TestHandleWatcherDetail_NotFound(t *testing.T) {
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(&pb.ListWatchersResponse{Watchers: []*pb.Watcher{{Name: "alpha"}}}, nil)
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, OIDCConfig{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockMachineService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/watchers/does-not-exist", nil)
@@ -172,7 +172,7 @@ func TestHandleWatcherDetail_ListWatchersError(t *testing.T) {
 	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
 		Return(nil, errors.New("service unavailable"))
 
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, OIDCConfig{})
+	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, &mockMachineService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/watchers/alpha", nil)
@@ -196,7 +196,7 @@ func TestHandleWatcherDetail_OptionalServicesErrorsAreIgnored(t *testing.T) {
 	flushSvc.On("ListPendingFiles", mock.Anything, mock.Anything).
 		Return(nil, errors.New("no pending"))
 
-	h, err := New(watcherSvc, flushSvc, redirectSvc, OIDCConfig{})
+	h, err := New(watcherSvc, flushSvc, redirectSvc, &mockMachineService{}, OIDCConfig{})
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/watchers/alpha", nil)

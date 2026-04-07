@@ -31,6 +31,12 @@ type redirectionService interface {
 	GetFileRedirection(context.Context, *pb.GetFileRedirectionRequest) (*pb.FileRedirection, error)
 }
 
+type machineService interface {
+	GetMachines(context.Context, *pb.EmptyRequest) (*pb.GetMachinesResponse, error)
+	CreateMachine(context.Context, *pb.InitializeMachineRequest) (*pb.MachineResponse, error)
+	DeleteMachine(context.Context, *pb.DeleteMachineRequest) (*pb.DeleteMachineResponse, error)
+}
+
 // Handler holds the HTTP mux and all service dependencies.
 type Handler struct {
 	mux         *http.ServeMux
@@ -38,12 +44,13 @@ type Handler struct {
 	watcherSvc  watcherService
 	flushSvc    flushService
 	redirectSvc redirectionService
+	machineSvc  machineService
 	auth        *authProvider // nil when OIDC is disabled
 	sessions    *sessionStore // nil when OIDC is disabled
 }
 
 // pages lists the per-page templates that each embed "base.html".
-var pages = []string{"index.html", "watchers.html", "watcher.html", "login.html"}
+var pages = []string{"index.html", "watchers.html", "watcher.html", "machines.html", "machine.html", "login.html"}
 
 // New wires up the HTTP handler with the given service implementations.
 // When oidcCfg.Enabled is true the OIDC provider is initialised and all
@@ -52,6 +59,7 @@ func New(
 	watcherSvc watcherService,
 	flushSvc flushService,
 	redirectSvc redirectionService,
+	machineSvc machineService,
 	oidcCfg OIDCConfig,
 ) (*Handler, error) {
 	funcs := template.FuncMap{"join": strings.Join}
@@ -71,6 +79,7 @@ func New(
 		watcherSvc:  watcherSvc,
 		flushSvc:    flushSvc,
 		redirectSvc: redirectSvc,
+		machineSvc:  machineSvc,
 	}
 
 	if oidcCfg.Enabled {
@@ -93,6 +102,10 @@ func New(
 	h.mux.HandleFunc("POST /watchers/{name}/sync", h.requireAuth(h.handleSync))
 	h.mux.HandleFunc("POST /watchers/{name}/flush", h.requireAuth(h.handleFlush))
 	h.mux.HandleFunc("POST /watchers/{name}/upload", h.requireAuth(h.handleUpload))
+	h.mux.HandleFunc("GET /machines", h.requireAuth(h.handleMachineList))
+	h.mux.HandleFunc("POST /machines", h.requireAuth(h.handleMachineCreate))
+	h.mux.HandleFunc("GET /machines/{name}", h.requireAuth(h.handleMachineDetail))
+	h.mux.HandleFunc("POST /machines/{name}/delete", h.requireAuth(h.handleMachineDelete))
 
 	return h, nil
 }

@@ -1,0 +1,62 @@
+{{template "base" .}}
+{{define "content"}}
+<hgroup>
+  <h2>{{.Machine.Name}}</h2>
+  <p>{{.Machine.Ip}}:{{.Machine.SshPort}} — {{.Machine.SshUser}}</p>
+</hgroup>
+
+<table>
+  <tbody>
+    <tr><th>Token</th><td><code>{{.Machine.Token}}</code></td></tr>
+    <tr><th>IP</th><td>{{.Machine.Ip}}</td></tr>
+    <tr><th>SSH Port</th><td>{{.Machine.SshPort}}</td></tr>
+    <tr><th>SSH User</th><td>{{.Machine.SshUser}}</td></tr>
+    <tr><th>SSH Key</th><td>{{.Machine.SshPrivateKey}}</td></tr>
+    <tr><th>Created At</th><td>{{if .Machine.CreatedAt}}{{.Machine.CreatedAt.AsTime.Format "2006-01-02 15:04:05"}}{{else}}-{{end}}</td></tr>
+    <tr><th>Updated At</th><td>{{if .Machine.UpdatedAt}}{{.Machine.UpdatedAt.AsTime.Format "2006-01-02 15:04:05"}}{{else}}-{{end}}</td></tr>
+  </tbody>
+</table>
+
+<div style="margin-bottom:2rem;">
+  <button hx-post="/machines/{{.Machine.Name}}/delete"
+          hx-confirm="Delete machine {{.Machine.Name}} and all its watchers?"
+          class="secondary small">Delete machine</button>
+</div>
+
+<hr/>
+
+<h4>Watchers</h4>
+{{if .Watchers}}
+<figure>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Source path</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Watchers}}
+      <tr>
+        <td><a href="/watchers/{{.Name}}">{{.Name}}</a></td>
+        <td>{{.SourcePath}}</td>
+        <td>
+          <div id="sync-result-{{.Name}}">
+            <button hx-post="/watchers/{{.Name}}/sync"
+                    hx-target="#sync-result-{{.Name}}"
+                    hx-swap="outerHTML"
+                    class="secondary small">Sync</button>
+          </div>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</figure>
+{{else}}
+<p><em>No watchers linked to this machine.</em></p>
+{{end}}
+
+<p><a href="/machines">← Back to machines</a></p>
+{{end}}

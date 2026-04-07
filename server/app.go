@@ -110,7 +110,7 @@ func NewApp() (*App, error) {
 	pb.RegisterFileFlushServiceServer(grpcServer, flushSvc)
 	pb.RegisterMachineServiceServer(grpcServer, machineSvc)
 
-	webHandler, err := web.New(watcherSvc, flushSvc, redirectionSvc, oidcCfg)
+	webHandler, err := web.New(watcherSvc, flushSvc, redirectionSvc, machineSvc, oidcCfg)
 	if err != nil {
 		return nil, fmt.Errorf("create web handler: %w", err)
 	}

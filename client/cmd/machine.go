@@ -36,7 +36,7 @@ func init() {
 	_ = createMachineCmd.MarkFlagRequired("ssh-user")
 	_ = createMachineCmd.MarkFlagRequired("ssh-key")
 
-	machineCmd.AddCommand(createMachineCmd, listMachinesCmd)
+	machineCmd.AddCommand(createMachineCmd, listMachinesCmd, deleteMachineCmd)
 }
 
 var createMachineCmd = &cobra.Command{
@@ -92,6 +92,29 @@ var listMachinesCmd = &cobra.Command{
 		}
 
 		printMachines(resp.Machines)
+		return nil
+	},
+}
+
+var deleteMachineCmd = &cobra.Command{
+	Use:   "delete <name>",
+	Short: "Delete a machine by name",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		svc := pb.NewMachineServiceClient(conn)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		resp, err := svc.DeleteMachine(ctx, &pb.DeleteMachineRequest{Name: args[0]})
+		if err != nil {
+			return err
+		}
+
+		if resp.Success {
+			fmt.Printf("Machine %q deleted.\n", args[0])
+		} else {
+			fmt.Printf("Machine %q could not be deleted.\n", args[0])
+		}
 		return nil
 	},
 }

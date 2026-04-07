@@ -50,6 +50,35 @@ func (m *mockFlushService) FlushWatcher(ctx context.Context, req *pb.FlushWatche
 	return args.Get(0).(*pb.FlushWatcherResponse), args.Error(1)
 }
 
+// mockMachineService implements machineService.
+type mockMachineService struct {
+	mock.Mock
+}
+
+func (m *mockMachineService) GetMachines(ctx context.Context, req *pb.EmptyRequest) (*pb.GetMachinesResponse, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*pb.GetMachinesResponse), args.Error(1)
+}
+
+func (m *mockMachineService) CreateMachine(ctx context.Context, req *pb.InitializeMachineRequest) (*pb.MachineResponse, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*pb.MachineResponse), args.Error(1)
+}
+
+func (m *mockMachineService) DeleteMachine(ctx context.Context, req *pb.DeleteMachineRequest) (*pb.DeleteMachineResponse, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*pb.DeleteMachineResponse), args.Error(1)
+}
+
 // mockRedirectionService implements redirectionService.
 type mockRedirectionService struct {
 	mock.Mock

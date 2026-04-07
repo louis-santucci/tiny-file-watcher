@@ -94,7 +94,7 @@ func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
 		watchedFilesSet.Add(watchedFile.FilePath)
 	}
 
-	ignorer, err := LoadIgnore(*sftpClient, j.watcher.SourcePath, j.logger)
+	ignorer, err := LoadIgnore(sftpClient, j.watcher.SourcePath, j.logger)
 	if err != nil {
 		j.logger.Error("sync: error loading .tfwignore", "watcher", j.watcher.Name, "path", j.watcher.SourcePath, "err", err)
 		ignorer = noopIgnorer{}
@@ -186,7 +186,7 @@ func (j *SyncJob) handleCurrentPaths(client *sftp.Client, watchedFilesSet *Set[s
 				analyzed.Add(current.Path())
 				continue
 			}
-			if ignorer.MatchesPath(j.watcher.SourcePath, current.Path()) {
+			if ignorer.MatchesPath(j.watcher.SourcePath, current.Path()) || current.Stat().Name() == ".tfwignore" {
 				j.logger.Debug("sync: skipping ignored file (.tfwignore rule)", "path", current.Path(), "watcher", j.watcher.Name)
 				continue
 			}

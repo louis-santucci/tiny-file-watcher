@@ -25,7 +25,7 @@ type Ignorer interface {
 // LoadIgnore loads the .tfwignore file at the given path and returns an Ignorer
 // that can be used to check whether files should be ignored.  If the file does
 // not exist, a noop Ignorer is returned that accepts all files.
-func LoadIgnore(client sftp.Client, path string, logger *slog.Logger) (Ignorer, error) {
+func LoadIgnore(client *sftp.Client, path string, logger *slog.Logger) (Ignorer, error) {
 	ignoreFile, err := client.OpenFile(path, os.O_RDONLY)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -43,6 +43,7 @@ func LoadIgnore(client sftp.Client, path string, logger *slog.Logger) (Ignorer, 
 	}
 
 	compiled := gitignore.CompileIgnoreLines(lines...)
+	logger.Debug("load ignore: loaded .tfwignore", "path", path)
 	return &fileIgnorer{compiled: compiled}, nil
 }
 

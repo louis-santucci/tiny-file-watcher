@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"tiny-file-watcher/server/config"
+	"sync"
 
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -24,10 +23,13 @@ type WatcherService struct {
 	machineRepository     database.MachineRepository
 	transactor            database.Transactor
 	logger                *slog.Logger
-	sshConfig             *config.SSHConfig
 	// syncJobOpts are forwarded to every SyncJob created by this service.
 	// Used in tests to inject a local RemoteFS and bypass SSH.
 	syncJobOpts []SyncJobOption
+	// syncLocks holds a *sync.Mutex per watcher name.  It ensures that only
+	// one sync (SyncWatcher or StreamSyncWatcher) runs at a time for a given
+	// watcher.  Entries are created on first use and never removed.
+	syncLocks sync.Map
 }
 
 // WatcherServiceOption is a functional option for WatcherService.
@@ -41,19 +43,31 @@ func WithSyncJobOptions(opts ...SyncJobOption) WatcherServiceOption {
 	}
 }
 
-func NewManagerService(fileWatcherRepository database.FileWatcherRepository, fileRepository database.FileRepository, machineRepository database.MachineRepository, logger *slog.Logger, sshConfig *config.SSHConfig, transactor database.Transactor, opts ...WatcherServiceOption) *WatcherService {
+func NewManagerService(fileWatcherRepository database.FileWatcherRepository, fileRepository database.FileRepository, machineRepository database.MachineRepository, logger *slog.Logger, transactor database.Transactor, opts ...WatcherServiceOption) *WatcherService {
 	svc := &WatcherService{
 		fileWatcherRepository: fileWatcherRepository,
 		fileRepository:        fileRepository,
 		machineRepository:     machineRepository,
 		logger:                logger,
-		sshConfig:             sshConfig,
 		transactor:            transactor,
 	}
 	for _, opt := range opts {
 		opt(svc)
 	}
 	return svc
+}
+
+// tryAcquireSyncLock attempts to acquire the per-watcher sync lock for name.
+// If the lock is free it is acquired and the caller must invoke the returned
+// unlock function when the sync is complete.  If the lock is already held by
+// another sync, ok is false and unlock is nil.
+func (s *WatcherService) tryAcquireSyncLock(name string) (unlock func(), ok bool) {
+	v, _ := s.syncLocks.LoadOrStore(name, &sync.Mutex{})
+	mu := v.(*sync.Mutex)
+	if !mu.TryLock() {
+		return nil, false
+	}
+	return mu.Unlock, true
 }
 
 func (s *WatcherService) CreateWatcher(_ context.Context, req *pb.CreateWatcherRequest) (*pb.Watcher, error) {
@@ -79,7 +93,7 @@ func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo data
 	if err != nil {
 		logger.Error("fetch machine for watcher", "machine_name", w.MachineName, "error", err)
 	}
-	syncJob := NewSyncJob(logger, w, machine, s.sshConfig, nil, fileRepo, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
+	syncJob := NewSyncJob(logger, w, machine, fileRepo, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
 	if _, err := syncJob.Run(true); err != nil {
 		logger.Error("add existing files for watcher", "watcher_name", w.Name, "error", err)
 	}
@@ -192,8 +206,13 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 			req.Name, w.MachineName, callerMachine.Name)
 	}
 
-	var publicKey ssh.PublicKey
-	syncJob := NewSyncJob(s.logger, w, callerMachine, s.sshConfig, publicKey, s.fileRepository, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
+	unlock, ok := s.tryAcquireSyncLock(req.Name)
+	if !ok {
+		return nil, status.Errorf(codes.AlreadyExists, "sync already in progress for watcher %q", req.Name)
+	}
+	defer unlock()
+
+	syncJob := NewSyncJob(s.logger, w, callerMachine, s.fileRepository, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
 
 	result, err := syncJob.Run(false)
 	if err != nil {
@@ -235,6 +254,12 @@ func (s *WatcherService) StreamSyncWatcher(req *pb.SyncWatcherRequest, stream gr
 			req.Name, w.MachineName, callerMachine.Name)
 	}
 
+	unlock, ok := s.tryAcquireSyncLock(req.Name)
+	if !ok {
+		return status.Errorf(codes.AlreadyExists, "sync already in progress for watcher %q", req.Name)
+	}
+	defer unlock()
+
 	// sendLog forwards a human-readable progress message to the client as a
 	// LOG event.  Errors are returned so the caller can abort early.
 	sendLog := func(msg string) error {
@@ -244,9 +269,8 @@ func (s *WatcherService) StreamSyncWatcher(req *pb.SyncWatcherRequest, stream gr
 		})
 	}
 
-	var publicKey ssh.PublicKey
 	syncJob := NewSyncJob(
-		s.logger, w, callerMachine, s.sshConfig, publicKey,
+		s.logger, w, callerMachine,
 		s.fileRepository, s.fileWatcherRepository, s.transactor,
 		append(s.syncJobOpts, WithLogCallback(func(msg string) {
 			// Best-effort: ignore send errors inside the callback; the Run()

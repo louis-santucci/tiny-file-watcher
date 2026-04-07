@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/test/mocks"
@@ -472,7 +473,6 @@ func TestStreamSyncWatcher_SyncJobOpts_Forwarded(t *testing.T) {
 		fileRepo,
 		machineRepo,
 		testutil.TestLogger(),
-		defaultSSHConfig,
 		transactor,
 		watcher.WithSyncJobOptions(watcher.WithRemoteFS(watcher.LocalRemoteFS())),
 	)
@@ -491,4 +491,63 @@ func TestStreamSyncWatcher_SyncJobOpts_Forwarded(t *testing.T) {
 	resultEvt := findResultEvent(stream.Sent)
 	assert.NotNil(t, resultEvt)
 	assert.Equal(t, int64(1), resultEvt.Result.AddedCount)
+}
+
+// ── lock ──────────────────────────────────────────────────────────────────────
+
+// TestStreamSyncWatcher_ConcurrentSync_AlreadyExists verifies that a second
+// StreamSyncWatcher call for the same watcher is rejected with AlreadyExists
+// while a first streaming sync is still in progress.
+//
+// The same channel-based blocking pattern used in the SyncWatcher lock test is
+// applied here: the first goroutine is held inside SyncJob.Run by a blocking
+// ListWatchedFiles mock; the second call must return AlreadyExists immediately.
+func TestStreamSyncWatcher_ConcurrentSync_AlreadyExists(t *testing.T) {
+	dir := t.TempDir()
+
+	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
+	fileRepo := &mocks.MockFileRepository{}
+	machineRepo := &mocks.MockMachineRepository{}
+	txRepo := &mocks.MockTransactionalFileRepository{}
+	svc := newServiceWithLocalFS(fileWatcherRepo, fileRepo, machineRepo, txRepo)
+
+	w := newWatcher(1, "w", dir)
+	machine := newMachineForSync()
+
+	release := make(chan struct{})
+	entered := make(chan struct{})
+
+	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
+	machineRepo.On("GetMachineByToken", testToken).Return(machine, nil)
+
+	// The first call blocks inside Run; the second call sees the lock is taken.
+	fileRepo.On("ListWatchedFiles", "w").
+		Run(func(args mock.Arguments) {
+			close(entered) // signal: lock is now held
+			<-release      // block until released
+		}).
+		Return([]*database.WatchedFile{}, nil).Once()
+	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil).Maybe()
+
+	req := &pb.SyncWatcherRequest{Name: "w", Token: testToken}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		stream := newStreamServer()
+		_ = svc.StreamSyncWatcher(req, stream)
+	}()
+
+	// Wait until the first streaming sync has acquired the lock.
+	<-entered
+
+	// Second call on the same watcher must be rejected.
+	stream2 := newStreamServer()
+	err := svc.StreamSyncWatcher(req, stream2)
+	assertCode(t, err, codes.AlreadyExists)
+
+	// Unblock the first sync.
+	close(release)
+	wg.Wait()
 }

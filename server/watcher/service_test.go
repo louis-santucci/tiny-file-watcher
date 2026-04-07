@@ -5,9 +5,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
-	"tiny-file-watcher/server/config"
 	"tiny-file-watcher/server/test/mocks"
 	"tiny-file-watcher/server/test/testutil"
 
@@ -37,11 +37,9 @@ func newWatcher(id int64, name, path string) *database.FileWatcher {
 	}
 }
 
-var defaultSSHConfig = &config.SSHConfig{PrivateKeysPath: "/tmp/keys", KnownHostsPath: "/tmp/known_hosts"}
-
 func newService(fileWatcherRepository *mocks.MockFileWatcherRepository, fileRepository *mocks.MockFileRepository, machineRepository *mocks.MockMachineRepository) *watcher.WatcherService {
 	transactor := &mocks.MockTransactor{}
-	return watcher.NewManagerService(fileWatcherRepository, fileRepository, machineRepository, testutil.TestLogger(), defaultSSHConfig, transactor)
+	return watcher.NewManagerService(fileWatcherRepository, fileRepository, machineRepository, testutil.TestLogger(), transactor)
 }
 
 // newServiceWithLocalFS creates a WatcherService that walks the local
@@ -59,7 +57,6 @@ func newServiceWithLocalFS(
 		fileRepository,
 		machineRepository,
 		testutil.TestLogger(),
-		defaultSSHConfig,
 		transactor,
 		watcher.WithSyncJobOptions(watcher.WithRemoteFS(watcher.LocalRemoteFS())),
 	)
@@ -587,3 +584,62 @@ func RequireNoError(t *testing.T, err error) {
 
 // suppress "imported and not used" for mock package
 var _ = mock.Anything
+
+// ── SyncWatcher: lock ─────────────────────────────────────────────────────────
+
+// TestSyncWatcher_ConcurrentSync_AlreadyExists verifies that a second
+// SyncWatcher call for the same watcher is rejected with AlreadyExists while
+// a first sync is still in progress.
+//
+// The first goroutine is held inside SyncJob.Run by a blocking ListWatchedFiles
+// mock (controlled by a channel).  Only once the second call has been observed
+// to return AlreadyExists is the first goroutine unblocked.
+func TestSyncWatcher_ConcurrentSync_AlreadyExists(t *testing.T) {
+	dir := t.TempDir()
+
+	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
+	fileRepo := &mocks.MockFileRepository{}
+	machineRepo := &mocks.MockMachineRepository{}
+	txRepo := &mocks.MockTransactionalFileRepository{}
+	svc := newServiceWithLocalFS(fileWatcherRepo, fileRepo, machineRepo, txRepo)
+
+	w := newWatcher(1, "w", dir)
+	machine := newMachineForSync()
+
+	// Block the first ListWatchedFiles call until we release it.
+	release := make(chan struct{})
+	entered := make(chan struct{})
+
+	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
+	machineRepo.On("GetMachineByToken", testToken).Return(machine, nil)
+
+	// First call: signal that the lock is held, then block until released.
+	fileRepo.On("ListWatchedFiles", "w").
+		Run(func(args mock.Arguments) {
+			close(entered)
+			<-release
+		}).
+		Return([]*database.WatchedFile{}, nil).Once()
+	// Subsequent calls (if any) succeed immediately.
+	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil).Maybe()
+
+	req := &pb.SyncWatcherRequest{Name: "w", Token: testToken}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, _ = svc.SyncWatcher(ctx, req)
+	}()
+
+	// Wait until the first sync has acquired the lock and is blocked.
+	<-entered
+
+	// This second call must be rejected immediately.
+	_, err := svc.SyncWatcher(ctx, req)
+	assertCode(t, err, codes.AlreadyExists)
+
+	// Unblock the first sync so the goroutine can finish.
+	close(release)
+	wg.Wait()
+}

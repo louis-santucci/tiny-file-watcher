@@ -155,6 +155,17 @@ message SyncWatcherResponse {
   repeated string removed_files = 4;
 }
 
+message SyncWatcherEvent {
+  enum EventType {
+    LOG = 0;
+    RESULT = 1;
+  }
+
+  EventType type = 1;
+  string    message = 2; // human-readable text; populated on LOG events
+  optional SyncWatcherResponse result = 3; // populated only on RESULT events
+}
+
 message ListWatchedFilesRequest {
   string watcher_name = 1;
 }
@@ -212,6 +223,7 @@ service FileWatcherService {
   rpc UpdateWatcher(UpdateWatcherRequest)       returns (Watcher);
   rpc DeleteWatcher(DeleteWatcherRequest)       returns (DeleteWatcherResponse);
   rpc SyncWatcher(SyncWatcherRequest)           returns (SyncWatcherResponse);
+  rpc StreamSyncWatcher(SyncWatcherRequest)     returns (stream SyncWatcherEvent);
 }
 
 service FileFlushService {

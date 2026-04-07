@@ -145,6 +145,7 @@ func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
 	ignorer, err := LoadIgnore(rfs, j.watcher.SourcePath+"/"+ignoreFileName, j.logger)
 	if err != nil {
 		j.logger.Error("sync: error loading .tfwignore", "watcher", j.watcher.Name, "path", j.watcher.SourcePath, "err", err)
+		j.log("ignoring rules")
 		ignorer = noopIgnorer{}
 	}
 

@@ -36,7 +36,7 @@ func LoadIgnore(client FileOpener, path string, logger *slog.Logger) (Ignorer, e
 	ignoreFile, err := client.OpenFile(path, os.O_RDONLY)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			logger.Debug("no .tfwignore found, all files accepted", "path", path)
+			logger.Warn("no .tfwignore found, all files accepted", "path", path)
 			return noopIgnorer{}, nil
 		}
 		return nil, err

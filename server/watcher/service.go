@@ -3,8 +3,6 @@ package watcher
 import (
 	"context"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"tiny-file-watcher/server/config"
 
 	"golang.org/x/crypto/ssh"
@@ -57,27 +55,13 @@ func (s *WatcherService) CreateWatcher(_ context.Context, req *pb.CreateWatcherR
 }
 
 func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo database.FileRepository, logger *slog.Logger) {
-	queue := []string{w.SourcePath}
-	for len(queue) > 0 {
-		current := queue[0]
-		queue = queue[1:]
-
-		entries, err := os.ReadDir(current)
-		if err != nil {
-			s.logger.Error("create watcher: error reading dir", "path", current, "err", err)
-			continue
-		}
-		for _, entry := range entries {
-			fullPath := filepath.Join(current, entry.Name())
-			if entry.IsDir() {
-				queue = append(queue, fullPath) // enqueue subdirectory
-				continue
-			}
-			if _, err := s.fileRepository.AddWatchedFile(w.Name, fullPath, true); err != nil {
-				s.logger.Error("create watcher: error adding file", "watcher", w.Name, "path", fullPath, "err", err)
-			}
-			s.logger.Debug("create watcher: adding file", "watcher", w.Name, "path", fullPath, "flushed", true)
-		}
+	machine, err := s.machineRepository.GetMachineByName(w.MachineName)
+	if err != nil {
+		logger.Error("fetch machine for watcher", "machine_name", w.MachineName, "error", err)
+	}
+	syncJob := NewSyncJob(logger, w, machine, s.sshConfig, nil, fileRepo, s.fileWatcherRepository, s.transactor)
+	if _, err := syncJob.Run(true); err != nil {
+		logger.Error("add existing files for watcher", "watcher_name", w.Name, "error", err)
 	}
 }
 

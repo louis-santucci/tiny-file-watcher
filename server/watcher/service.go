@@ -2,10 +2,12 @@ package watcher
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"tiny-file-watcher/server/config"
 
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -204,6 +206,80 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 		AddedFiles:   result.AddedFiles,
 		RemovedFiles: result.RemovedFiles,
 	}, nil
+}
+
+// StreamSyncWatcher is the server-streaming variant of SyncWatcher.
+// It sends LOG events at each major step of the sync process and a final
+// RESULT event containing the SyncWatcherResponse.
+func (s *WatcherService) StreamSyncWatcher(req *pb.SyncWatcherRequest, stream grpc.ServerStreamingServer[pb.SyncWatcherEvent]) error {
+	if req.Name == "" {
+		return status.Error(codes.InvalidArgument, "name is required")
+	}
+	if req.Token == "" {
+		return status.Error(codes.InvalidArgument, "token is required")
+	}
+
+	w, err := s.fileWatcherRepository.GetWatcherByName(req.Name)
+	if err != nil {
+		return status.Errorf(codes.NotFound, "watcher %s not found", req.Name)
+	}
+
+	// Verify the caller's machine owns this watcher.
+	callerMachine, err := s.machineRepository.GetMachineByToken(req.Token)
+	if err != nil {
+		return status.Errorf(codes.PermissionDenied, "machine with token %q is not registered", req.Token)
+	}
+	if callerMachine.Name != w.MachineName {
+		return status.Errorf(codes.PermissionDenied,
+			"watcher %q belongs to machine %q, but request comes from machine %q",
+			req.Name, w.MachineName, callerMachine.Name)
+	}
+
+	// sendLog forwards a human-readable progress message to the client as a
+	// LOG event.  Errors are returned so the caller can abort early.
+	sendLog := func(msg string) error {
+		return stream.Send(&pb.SyncWatcherEvent{
+			Type:    pb.SyncWatcherEvent_LOG,
+			Message: msg,
+		})
+	}
+
+	var publicKey ssh.PublicKey
+	syncJob := NewSyncJob(
+		s.logger, w, callerMachine, s.sshConfig, publicKey,
+		s.fileRepository, s.fileWatcherRepository, s.transactor,
+		append(s.syncJobOpts, WithLogCallback(func(msg string) {
+			// Best-effort: ignore send errors inside the callback; the Run()
+			// caller will surface any stream error through the returned error.
+			_ = sendLog(msg)
+		}))...,
+	)
+
+	result, err := syncJob.Run(false)
+	if err != nil {
+		return status.Errorf(codes.Internal, "sync watcher: %v", err)
+	}
+
+	// Send a final summary LOG before the RESULT event.
+	if err := sendLog(fmt.Sprintf("sync complete: %d file(s) added, %d file(s) removed", result.AddedCount, result.RemovedCount)); err != nil {
+		return status.Errorf(codes.Internal, "stream send: %v", err)
+	}
+
+	// Send the RESULT event — this is the only message that carries the full
+	// SyncWatcherResponse.
+	if err := stream.Send(&pb.SyncWatcherEvent{
+		Type: pb.SyncWatcherEvent_RESULT,
+		Result: &pb.SyncWatcherResponse{
+			AddedCount:   int64(result.AddedCount),
+			RemovedCount: int64(result.RemovedCount),
+			AddedFiles:   result.AddedFiles,
+			RemovedFiles: result.RemovedFiles,
+		},
+	}); err != nil {
+		return status.Errorf(codes.Internal, "stream send result: %v", err)
+	}
+
+	return nil
 }
 
 func toProto(w *database.FileWatcher) *pb.Watcher {

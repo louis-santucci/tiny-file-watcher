@@ -65,6 +65,10 @@ type SyncJob struct {
 	transactor        database.Transactor
 	// remoteFS overrides the SSH/SFTP transport when set (used in tests).
 	remoteFS RemoteFS
+	// onLog is an optional callback invoked with a human-readable message at
+	// each major step of the sync process.  Used by StreamSyncWatcher to send
+	// LOG events to the client.  When nil, calls are silently ignored.
+	onLog func(string)
 }
 
 // SyncJobOption is a functional option for SyncJob.
@@ -75,6 +79,22 @@ type SyncJobOption func(*SyncJob)
 func WithRemoteFS(rfs RemoteFS) SyncJobOption {
 	return func(j *SyncJob) {
 		j.remoteFS = rfs
+	}
+}
+
+// WithLogCallback sets a callback that is invoked with a human-readable
+// progress message at each major step of the sync process.  Used by
+// StreamSyncWatcher to forward LOG events to the streaming client.
+func WithLogCallback(fn func(string)) SyncJobOption {
+	return func(j *SyncJob) {
+		j.onLog = fn
+	}
+}
+
+// log invokes the onLog callback when one has been set.
+func (j *SyncJob) log(msg string) {
+	if j.onLog != nil {
+		j.onLog(msg)
 	}
 }
 
@@ -110,6 +130,7 @@ func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
 		return nil, err
 	}
 
+	j.log("loading watched files from database")
 	watchedFiles, err := j.fileRepository.ListWatchedFiles(j.watcher.Name)
 	if err != nil {
 		j.logger.Error("failed to list watched files", "error", err)
@@ -120,6 +141,7 @@ func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
 		watchedFilesSet.Add(watchedFile.FilePath)
 	}
 
+	j.log("loading ignore rules")
 	ignorer, err := LoadIgnore(rfs, j.watcher.SourcePath+"/"+ignoreFileName, j.logger)
 	if err != nil {
 		j.logger.Error("sync: error loading .tfwignore", "watcher", j.watcher.Name, "path", j.watcher.SourcePath, "err", err)
@@ -128,12 +150,14 @@ func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
 
 	// using batch of results, check in db if file exists for this file watcher, if not, create it, if yes, do nothing
 
+	j.log("walking source path")
 	onDisk, addedFiles, err := j.handleCurrentPaths(rfs, watchedFilesSet, ignorer)
 	if err != nil {
 		j.logger.Error("sync: error handling current paths", "error", err, "watcher", j.watcher.Name)
 		return nil, err
 	}
 
+	j.log("computing removed files")
 	removedFiles := make([]string, 0)
 	for _, watchedFile := range watchedFiles {
 		if !onDisk.Contains(watchedFile.FilePath) {
@@ -144,6 +168,7 @@ func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
 
 	// bulk insert new files
 	// bulk remove deleted files
+	j.log("saving updates to database")
 	err = j.saveUpdates(*addedFiles, removedFiles, flush)
 	if err != nil {
 		j.logger.Error("sync: error saving updates to database", "error", err, "watcher", j.watcher.Name)

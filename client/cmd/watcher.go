@@ -36,6 +36,9 @@ func init() {
 	listWatcherFilesCmd.Flags().BoolVarP(&watchedFilsShowPath, "show-path", "p", false, "Show the full file path column in the output table")
 	listWatchersCmd.Flags().BoolVarP(&listWatchersAllMachines, "all", "a", false, "List watchers from all machines (default: current machine only)")
 
+	// sync
+	syncWatcherCmd.Flags().Bool("no-stream", false, "Use the unary SyncWatcher RPC instead of the default streaming RPC")
+
 	watcherCmd.AddCommand(
 		listWatcherFilesCmd,
 		listWatchersCmd,

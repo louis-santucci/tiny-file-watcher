@@ -11,9 +11,9 @@ message Watcher {
   int64 id = 1;
   string name = 2;
   string source_path = 3;
-  bool enabled = 4;
-  google.protobuf.Timestamp created_at = 5;
-  google.protobuf.Timestamp updated_at = 6;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+  string machine_name = 6;
 }
 
 message FileRedirection {
@@ -57,6 +57,9 @@ message DeleteFileRedirectionRequest {
 message CreateWatcherRequest {
   string name = 1;
   string source_path = 2;
+  bool flush_existing = 3;
+  repeated AddFilterRequest filters = 4;
+  string machine_name = 5;
 }
 
 message FlushWatcherRequest {
@@ -79,7 +82,9 @@ message GetWatcherByIdRequest {
   int64 id = 1;
 }
 
-message ListWatchersRequest {}
+message ListWatchersRequest {
+  optional string machine_name = 1;
+}
 
 message ListWatchersResponse {
   repeated Watcher watchers = 1;
@@ -108,18 +113,18 @@ message FlushWatcherResponse {
 }
 
 message WatcherFilter {
-  int64  id           = 1;
+  int64  id = 1;
   string watcher_name = 2;
-  string rule_type    = 3; // "include" or "exclude"
+  string rule_type = 3; // "include" or "exclude"
   string pattern_type = 4; // "extension", "name", or "glob"
-  string pattern      = 5;
+  string pattern = 5;
 }
 
 message AddFilterRequest {
   string watcher_name = 1;
-  string rule_type    = 2;
+  string rule_type = 2;
   string pattern_type = 3;
-  string pattern      = 4;
+  string pattern = 4;
 }
 
 message ListFiltersRequest {
@@ -138,8 +143,75 @@ message DeleteFilterResponse {
   bool success = 1;
 }
 
-message ToggleWatcherRequest {
+message SyncWatcherRequest {
   string name = 1;
+  string token = 2;
+}
+
+message SyncWatcherResponse {
+  int64 added_count = 1;
+  int64 removed_count = 2;
+  repeated string added_files = 3;
+  repeated string removed_files = 4;
+}
+
+message SyncWatcherEvent {
+  enum EventType {
+    LOG = 0;
+    RESULT = 1;
+  }
+
+  EventType type = 1;
+  string    message = 2; // human-readable text; populated on LOG events
+  optional SyncWatcherResponse result = 3; // populated only on RESULT events
+}
+
+message ListWatchedFilesRequest {
+  string watcher_name = 1;
+}
+
+message ListWatchedFilesResponse {
+  repeated WatchedFile files = 1;
+}
+
+message InitializeMachineRequest {
+  string name = 1;
+  string token = 2;
+  string ip = 3;
+  int32 ssh_port = 4;
+  string ssh_user = 5;
+  string ssh_private_key = 6;
+}
+
+message MachineResponse {
+  string token = 1;
+  string name = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp updated_at = 4;
+  string ip = 5;
+  int32 ssh_port = 6;
+  string ssh_user = 7;
+  string ssh_private_key = 8;
+}
+
+message DeleteMachineResponse {
+  bool success = 1;
+}
+
+message DeleteMachineRequest {
+  string name = 1;
+}
+
+message GetMachinesResponse {
+  repeated MachineResponse machines = 1;
+}
+
+message EmptyRequest {}
+
+service MachineService {
+  rpc CreateMachine(InitializeMachineRequest) returns (MachineResponse);
+  rpc GetMachines(EmptyRequest)               returns (GetMachinesResponse);
+  rpc DeleteMachine(DeleteMachineRequest)     returns (DeleteMachineResponse);
 }
 
 service FileWatcherService {
@@ -147,18 +219,20 @@ service FileWatcherService {
   rpc GetWatcherById(GetWatcherByIdRequest)     returns (Watcher);
   rpc GetWatcherByName(GetWatcherByNameRequest) returns (Watcher);
   rpc ListWatchers(ListWatchersRequest)         returns (ListWatchersResponse);
+  rpc ListWatchedFiles(ListWatchedFilesRequest) returns (ListWatchedFilesResponse);
   rpc UpdateWatcher(UpdateWatcherRequest)       returns (Watcher);
   rpc DeleteWatcher(DeleteWatcherRequest)       returns (DeleteWatcherResponse);
-  rpc ToggleWatcher(ToggleWatcherRequest)       returns (Watcher);
+  rpc SyncWatcher(SyncWatcherRequest)           returns (SyncWatcherResponse);
+  rpc StreamSyncWatcher(SyncWatcherRequest)     returns (stream SyncWatcherEvent);
 }
 
 service FileFlushService {
-  rpc FlushWatcher(FlushWatcherRequest) returns (FlushWatcherResponse);
+  rpc FlushWatcher(FlushWatcherRequest)         returns (FlushWatcherResponse);
   rpc ListPendingFiles(ListPendingFilesRequest) returns (ListPendingFilesResponse);
 }
 
 service FileRedirectionService {
-  rpc GetFileRedirection(GetFileRedirectionRequest) returns (FileRedirection);
+  rpc GetFileRedirection(GetFileRedirectionRequest)       returns (FileRedirection);
   rpc CreateFileRedirection(CreateFileRedirectionRequest) returns (FileRedirection);
   rpc UpdateFileRedirection(UpdateFileRedirectionRequest) returns (FileRedirection);
   rpc DeleteFileRedirection(DeleteFileRedirectionRequest) returns (DeleteFileRedirectionResponse);

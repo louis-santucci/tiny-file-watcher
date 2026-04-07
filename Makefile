@@ -20,18 +20,36 @@ PLIST_LABEL       := louissantucci.tfws
 PLIST_TEMPLATE    := launchd/$(PLIST_LABEL).plist
 PLIST_DEST        := $(LAUNCH_AGENTS_DIR)/$(PLIST_LABEL).plist
 
+SYSTEMD_USER_DIR  := $(HOME)/.config/systemd/user
+SERVICE_NAME      := tfws.service
+SERVICE_TEMPLATE  := systemd/$(SERVICE_NAME)
+SERVICE_DEST      := $(SYSTEMD_USER_DIR)/$(SERVICE_NAME)
+
 IOS_GEN_DIR := tiny-file-watcher-app/tiny-file-watcher-app/Generated
 
-.PHONY: all install-tools generate generate-swift build build-client build-all install test lint clean \
-        install-service uninstall-service enable-service disable-service
+.PHONY: all help install-tools generate build build-client build-all install test lint clean \
+        install-service uninstall-service enable-service disable-service \
+        install-service-linux uninstall-service-linux enable-service-linux disable-service-linux
+
+## help: list all available make rules with descriptions
+help:
+	@echo "Usage: make <rule>"
+	@echo ""
+	@awk '/^## [a-zA-Z]/ { \
+		split($$0, a, ": "); \
+		rule = substr(a[1], 4); \
+		desc = a[2]; \
+		for (i = 3; i <= length(a); i++) desc = desc ": " a[i]; \
+		printf "  %-20s %s\n", rule, desc \
+	}' $(MAKEFILE_LIST)
 
 all: generate build
 
 ## install-tools: install protoc plugins and golangci-lint
 install-tools:
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	@go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 ## generate: regenerate Go code from .proto file
 generate: $(PROTO_FILE) | $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_GRPC)
@@ -41,18 +59,6 @@ generate: $(PROTO_FILE) | $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_GRPC)
 		--go_out=$(GEN_DIR) --go_opt=paths=source_relative \
 		--go-grpc_out=$(GEN_DIR) --go-grpc_opt=paths=source_relative \
 		$(PROTO_FILE)
-
-## generate-swift: regenerate Swift proto stubs for the iOS app from .proto file
-## Requires: brew install swift-protobuf protoc-gen-grpc-swift
-generate-swift: $(PROTO_FILE)
-	@mkdir -p $(IOS_GEN_DIR)
-	@protoc \
-		--proto_path=$(PROTO_DIR) \
-		--swift_out=$(IOS_GEN_DIR) \
-		--grpc-swift-2_out=$(IOS_GEN_DIR) \
-		--plugin=protoc-gen-grpc-swift-2=/opt/homebrew/bin/protoc-gen-grpc-swift-2 \
-		$(PROTO_FILE)
-	@echo "Swift stubs regenerated in $(IOS_GEN_DIR)"
 
 ## build: compile the server binary (tfws)
 build: generate build-client build-server
@@ -80,8 +86,8 @@ lint: generate | $(GOLANGCI_LINT)
 
 ## clean: remove built binaries and generated proto files
 clean:
-	rm -f $(SERVER_BINARY) $(CLIENT_BINARY)
-	rm -f $(GEN_DIR)/*.pb.go $(GEN_DIR)/*_grpc.pb.go
+	@rm -f $(SERVER_BINARY) $(CLIENT_BINARY)
+	@rm -f $(GEN_DIR)/*.pb.go $(GEN_DIR)/*_grpc.pb.go
 
 $(PROTOC_GEN_GO):
 	@go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
@@ -116,3 +122,31 @@ enable-service:
 disable-service:
 	@launchctl unload -w $(PLIST_DEST)
 	@echo "tfws LaunchAgent disabled."
+
+## install-service-linux: install tfws and register as a systemd user service (starts at login)
+install-service-linux: install
+	@mkdir -p $(SYSTEMD_USER_DIR)
+	@mkdir -p $(HOME)/.local/share/tfws
+	@sed -e 's|@@BINARY_PATH@@|$(INSTALL_DIR)/$(SERVER_BINARY)|g' \
+	     -e 's|@@HOME@@|$(HOME)|g' \
+	     $(SERVICE_TEMPLATE) > $(SERVICE_DEST)
+	@systemctl --user daemon-reload
+	@systemctl --user enable --now $(SERVICE_NAME)
+	@echo "tfws systemd user service installed and started."
+
+## uninstall-service-linux: stop and remove the tfws systemd user service
+uninstall-service-linux:
+	@systemctl --user disable --now $(SERVICE_NAME) 2>/dev/null || true
+	@rm -f $(SERVICE_DEST)
+	@systemctl --user daemon-reload
+	@echo "tfws systemd user service removed."
+
+## enable-service-linux: enable (start) the tfws systemd user service
+enable-service-linux:
+	@systemctl --user enable --now $(SERVICE_NAME)
+	@echo "tfws systemd user service enabled."
+
+## disable-service-linux: disable (stop) the tfws systemd user service
+disable-service-linux:
+	@systemctl --user disable --now $(SERVICE_NAME)
+	@echo "tfws systemd user service disabled."

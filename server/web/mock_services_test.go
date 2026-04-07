@@ -21,12 +21,12 @@ func (m *mockWatcherService) ListWatchers(ctx context.Context, req *pb.ListWatch
 	return args.Get(0).(*pb.ListWatchersResponse), args.Error(1)
 }
 
-func (m *mockWatcherService) ToggleWatcher(ctx context.Context, req *pb.ToggleWatcherRequest) (*pb.Watcher, error) {
+func (m *mockWatcherService) SyncWatcher(ctx context.Context, req *pb.SyncWatcherRequest) (*pb.SyncWatcherResponse, error) {
 	args := m.Called(ctx, req)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*pb.Watcher), args.Error(1)
+	return args.Get(0).(*pb.SyncWatcherResponse), args.Error(1)
 }
 
 // mockFlushService implements flushService.
@@ -50,6 +50,35 @@ func (m *mockFlushService) FlushWatcher(ctx context.Context, req *pb.FlushWatche
 	return args.Get(0).(*pb.FlushWatcherResponse), args.Error(1)
 }
 
+// mockMachineService implements machineService.
+type mockMachineService struct {
+	mock.Mock
+}
+
+func (m *mockMachineService) GetMachines(ctx context.Context, req *pb.EmptyRequest) (*pb.GetMachinesResponse, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*pb.GetMachinesResponse), args.Error(1)
+}
+
+func (m *mockMachineService) CreateMachine(ctx context.Context, req *pb.InitializeMachineRequest) (*pb.MachineResponse, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*pb.MachineResponse), args.Error(1)
+}
+
+func (m *mockMachineService) DeleteMachine(ctx context.Context, req *pb.DeleteMachineRequest) (*pb.DeleteMachineResponse, error) {
+	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*pb.DeleteMachineResponse), args.Error(1)
+}
+
 // mockRedirectionService implements redirectionService.
 type mockRedirectionService struct {
 	mock.Mock
@@ -61,17 +90,4 @@ func (m *mockRedirectionService) GetFileRedirection(ctx context.Context, req *pb
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*pb.FileRedirection), args.Error(1)
-}
-
-// mockFilterService implements filterService.
-type mockFilterService struct {
-	mock.Mock
-}
-
-func (m *mockFilterService) ListFilters(ctx context.Context, req *pb.ListFiltersRequest) (*pb.ListFiltersResponse, error) {
-	args := m.Called(ctx, req)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*pb.ListFiltersResponse), args.Error(1)
 }

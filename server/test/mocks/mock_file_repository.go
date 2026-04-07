@@ -19,12 +19,33 @@ func (m *MockFileRepository) AddWatchedFile(watcherName string, filePath string,
 	return nil, args.Error(1)
 }
 
+func (m *MockFileRepository) BulkAddWatchedFiles(watcherName string, files map[string]string, flushed bool) ([]*database.WatchedFile, error) {
+	args := m.Called(watcherName, files, flushed)
+	if v := args.Get(0); v != nil {
+		return v.([]*database.WatchedFile), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockFileRepository) RemoveWatchedFile(watcherName string, filePath string) error {
 	args := m.Called(watcherName, filePath)
+	return args.Error(0)
+}
+
+func (m *MockFileRepository) BulkRemoveWatchedFiles(watcherName string, filePaths []string) error {
+	args := m.Called(watcherName, filePaths)
 	return args.Error(0)
 }
 
 func (m *MockFileRepository) FlushWatchedFiles(ids []int64) error {
 	args := m.Called(ids)
 	return args.Error(0)
+}
+
+func (m *MockFileRepository) ListWatchedFiles(watcherName string) ([]*database.WatchedFile, error) {
+	args := m.Called(watcherName)
+	if v := args.Get(0); v != nil {
+		return v.([]*database.WatchedFile), args.Error(1)
+	}
+	return nil, args.Error(1)
 }

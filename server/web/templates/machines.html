@@ -1,0 +1,86 @@
+{{template "base" .}}
+{{define "content"}}
+<div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; margin-bottom:1rem;">
+  <h2 style="margin:0">Machines</h2>
+  <button onclick="document.getElementById('create-machine-dialog').removeAttribute('hidden')" class="small">+ Add machine</button>
+</div>
+
+{{if .Error}}
+<p style="color:var(--pico-color-red-500)"><strong>Error:</strong> {{.Error}}</p>
+{{end}}
+
+{{if .Machines}}
+<figure>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>IP</th>
+        <th>SSH Port</th>
+        <th>SSH User</th>
+        <th>Token</th>
+        <th>Created At</th>
+        <th>Updated At</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Machines}}
+      <tr id="machine-row-{{.Name}}">
+        <td><a href="/machines/{{.Name}}">{{.Name}}</a></td>
+        <td>{{.Ip}}</td>
+        <td>{{.SshPort}}</td>
+        <td>{{.SshUser}}</td>
+        <td><code style="font-size:0.8rem">{{.Token}}</code></td>
+        <td>{{if .CreatedAt}}{{.CreatedAt.AsTime.Format "2006-01-02 15:04:05"}}{{else}}-{{end}}</td>
+        <td>{{if .UpdatedAt}}{{.UpdatedAt.AsTime.Format "2006-01-02 15:04:05"}}{{else}}-{{end}}</td>
+        <td>
+          <button hx-post="/machines/{{.Name}}/delete"
+                  hx-confirm="Delete machine {{.Name}} and all its watchers?"
+                  hx-target="#machine-row-{{.Name}}"
+                  hx-swap="outerHTML"
+                  class="secondary small">Delete</button>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</figure>
+{{else}}
+<p>No machines registered yet.</p>
+{{end}}
+
+<div id="create-machine-dialog" hidden>
+  <article>
+    <header>
+      <button onclick="document.getElementById('create-machine-dialog').setAttribute('hidden','')"
+              aria-label="Close" rel="prev"></button>
+      <h3>Add machine</h3>
+    </header>
+    <form method="POST" action="/machines">
+      <label>Name
+        <input type="text" name="name" required placeholder="my-server"/>
+      </label>
+      <label>IP address
+        <input type="text" name="ip" required placeholder="192.168.1.10"/>
+      </label>
+      <div class="grid">
+        <label>SSH port
+          <input type="number" name="ssh_port" value="22" min="1" max="65535"/>
+        </label>
+        <label>SSH user
+          <input type="text" name="ssh_user" required placeholder="ubuntu"/>
+        </label>
+      </div>
+      <label>SSH private key (full path on server)
+        <input type="text" name="ssh_key" required placeholder="/home/ubuntu/.ssh/id_rsa"/>
+      </label>
+      <footer>
+        <button type="submit">Create</button>
+        <button type="button" class="secondary"
+                onclick="document.getElementById('create-machine-dialog').setAttribute('hidden','')">Cancel</button>
+      </footer>
+    </form>
+  </article>
+</div>
+{{end}}

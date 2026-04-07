@@ -15,7 +15,7 @@ func newTestHandler(t *testing.T) *Handler {
 		&mockWatcherService{},
 		&mockFlushService{},
 		&mockRedirectionService{},
-		&mockFilterService{},
+		&mockMachineService{},
 		OIDCConfig{},
 	)
 	require.NoError(t, err)
@@ -27,7 +27,7 @@ func TestNew_Success(t *testing.T) {
 		&mockWatcherService{},
 		&mockFlushService{},
 		&mockRedirectionService{},
-		&mockFilterService{},
+		&mockMachineService{},
 		OIDCConfig{},
 	)
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func newHandlerWithAuth(t *testing.T) *Handler {
 		&mockWatcherService{},
 		&mockFlushService{},
 		&mockRedirectionService{},
-		&mockFilterService{},
+		&mockMachineService{},
 		OIDCConfig{},
 	)
 	require.NoError(t, err)

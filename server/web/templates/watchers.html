@@ -8,29 +8,20 @@
       <tr>
         <th>Name</th>
         <th>Source path</th>
-        <th>Status</th>
         <th>Actions</th>
       </tr>
     </thead>
     <tbody>
       {{range .Watchers}}
-      {{$badge := "● Disabled"}}
-      {{$color := "var(--pico-color-red-550)"}}
-      {{$toggleLabel := "Enable"}}
-      {{if .Enabled}}
-        {{$badge = "● Enabled"}}
-        {{$color = "var(--pico-color-green-550)"}}
-        {{$toggleLabel = "Disable"}}
-      {{end}}
       <tr id="watcher-row-{{.Name}}">
         <td><a href="/watchers/{{.Name}}">{{.Name}}</a></td>
         <td>{{.SourcePath}}</td>
-        <td><span style="color:{{$color}}">{{$badge}}</span></td>
         <td>
-          <button hx-post="/watchers/{{.Name}}/toggle"
-                  hx-target="#watcher-row-{{.Name}}"
+          <button hx-post="/watchers/{{.Name}}/sync"
+                  hx-target="#sync-result-{{.Name}}"
                   hx-swap="outerHTML"
-                  class="secondary small">{{$toggleLabel}}</button>
+                  class="secondary small">Sync</button>
+          <span id="sync-result-{{.Name}}"></span>
         </td>
       </tr>
       {{end}}

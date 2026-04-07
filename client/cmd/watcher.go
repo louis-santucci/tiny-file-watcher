@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 
+	clientmachine "tiny-file-watcher/client/machine"
 	pb "tiny-file-watcher/gen/grpc"
 
 	"github.com/spf13/cobra"
@@ -18,23 +20,53 @@ var watcherCmd = &cobra.Command{
 	Short:   "Manage file watchers",
 }
 
+var watchedFilsShowPath bool
+var listWatchersAllMachines bool
+
 func init() {
 	// create
 	createWatcherCmd.Flags().StringP("path", "p", "", "Source path to watch (required)")
 	_ = createWatcherCmd.MarkFlagRequired("path")
+	createWatcherCmd.Flags().Bool("flush-existing", false, "Add files already on disk as pending (to be flushed); by default they are recorded as already flushed")
 
 	// update
 	updateWatcherCmd.Flags().String("name", "", "New name for the watcher")
 	updateWatcherCmd.Flags().String("path", "", "New source path for the watcher")
 
+	listWatcherFilesCmd.Flags().BoolVarP(&watchedFilsShowPath, "show-path", "p", false, "Show the full file path column in the output table")
+	listWatchersCmd.Flags().BoolVarP(&listWatchersAllMachines, "all", "a", false, "List watchers from all machines (default: current machine only)")
+
+	// sync
+	syncWatcherCmd.Flags().Bool("no-stream", false, "Use the unary SyncWatcher RPC instead of the default streaming RPC")
+
 	watcherCmd.AddCommand(
+		listWatcherFilesCmd,
 		listWatchersCmd,
 		getWatcherCmd,
 		createWatcherCmd,
 		updateWatcherCmd,
 		deleteWatcherCmd,
-		toggleWatcherCmd,
+		syncWatcherCmd,
 	)
+}
+
+var listWatcherFilesCmd = &cobra.Command{
+	Use:   "files <watcher-name>",
+	Short: "List all files tracked by a watcher",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		svc := pb.NewFileWatcherServiceClient(conn)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		resp, err := svc.ListWatchedFiles(ctx, &pb.ListWatchedFilesRequest{WatcherName: args[0]})
+		if err != nil {
+			return err
+		}
+
+		printWatchedFiles(resp.Files, watchedFilsShowPath)
+		return nil
+	},
 }
 
 var listWatchersCmd = &cobra.Command{
@@ -45,7 +77,17 @@ var listWatchersCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		resp, err := svc.ListWatchers(ctx, &pb.ListWatchersRequest{})
+		req := &pb.ListWatchersRequest{}
+		if !listWatchersAllMachines {
+			machineName, err := clientmachine.LoadMachineName()
+			if err == nil {
+				req.MachineName = &machineName
+			} else {
+				fmt.Fprintln(os.Stderr, "note: machine not initialized, listing watchers from all machines (run 'tfw machine init' to associate a machine)")
+			}
+		}
+
+		resp, err := svc.ListWatchers(ctx, req)
 		if err != nil {
 			return err
 		}
@@ -60,11 +102,11 @@ var getWatcherCmd = &cobra.Command{
 	Short: "Get a watcher by name",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		svc := pb.NewFileWatcherServiceClient(conn)
+		watcherSvc := pb.NewFileWatcherServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		w, err := svc.GetWatcherByName(ctx, &pb.GetWatcherByNameRequest{Name: args[0]})
+		w, err := watcherSvc.GetWatcherByName(ctx, &pb.GetWatcherByNameRequest{Name: args[0]})
 		if err != nil {
 			return err
 		}
@@ -80,14 +122,22 @@ var createWatcherCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path, _ := cmd.Flags().GetString("path")
+		flushExisting, _ := cmd.Flags().GetBool("flush-existing")
 
-		svc := pb.NewFileWatcherServiceClient(conn)
+		machineName, err := clientmachine.LoadMachineName()
+		if err != nil {
+			return fmt.Errorf("could not determine current machine: %w\nRun 'tfw machine init <name>' first", err)
+		}
+
+		watcherSvc := pb.NewFileWatcherServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		w, err := svc.CreateWatcher(ctx, &pb.CreateWatcherRequest{
-			Name:       args[0],
-			SourcePath: path,
+		w, err := watcherSvc.CreateWatcher(ctx, &pb.CreateWatcherRequest{
+			Name:          args[0],
+			SourcePath:    path,
+			FlushExisting: flushExisting,
+			MachineName:   machineName,
 		})
 		if err != nil {
 			return err
@@ -163,44 +213,57 @@ var deleteWatcherCmd = &cobra.Command{
 	},
 }
 
-var toggleWatcherCmd = &cobra.Command{
-	Use:   "toggle <name>",
-	Short: "Enable or disable a watcher",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		svc := pb.NewFileWatcherServiceClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+func printWatchedFiles(files []*pb.WatchedFile, showPath bool) {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 
-		w, err := svc.ToggleWatcher(ctx, &pb.ToggleWatcherRequest{Name: args[0]})
-		if err != nil {
-			return err
+	if showPath {
+		fmt.Fprintln(w, "FILE PATH\tFLUSHED\tDETECTED AT")
+		fmt.Fprintln(w, "---------\t-------\t-----------")
+	} else {
+		fmt.Fprintln(w, "FILE NAME\tFLUSHED\tDETECTED AT")
+		fmt.Fprintln(w, "---------\t-------\t-----------")
+	}
+	for _, f := range files {
+		detected := "-"
+		if f.DetectedAt != nil {
+			detected = f.DetectedAt.AsTime().Format(time.DateTime)
 		}
-
-		state := "disabled"
-		if w.Enabled {
-			state = "enabled"
+		// get file name from file path
+		if showPath {
+			fmt.Fprintf(w, "%s\t%t\t%s\n",
+				f.FilePath,
+				f.Flushed,
+				detected,
+			)
+			continue
 		}
-		fmt.Printf("Watcher %q is now %s.\n", w.Name, state)
-		printWatchers([]*pb.Watcher{w})
-		return nil
-	},
+		fileName := f.FilePath
+		if idx := strings.LastIndex(f.FilePath, string(os.PathSeparator)); idx != -1 {
+			fileName = f.FilePath[idx+1:]
+		}
+		fmt.Fprintf(w, "%s\t%t\t%s\n",
+			fileName,
+			f.Flushed,
+			detected,
+		)
+	}
+	w.Flush()
 }
 
 func printWatchers(watchers []*pb.Watcher) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tNAME\tSOURCE PATH\tENABLED\tCREATED AT")
-	fmt.Fprintln(w, "--\t----\t-----------\t-------\t----------")
+	fmt.Fprintln(w, "ID\tNAME\tMACHINE\tSOURCE PATH\tCREATED AT")
+	fmt.Fprintln(w, "--\t----\t-------\t-----------\t----------")
 	for _, watcher := range watchers {
 		created := "-"
 		if watcher.CreatedAt != nil {
 			created = watcher.CreatedAt.AsTime().Format(time.DateTime)
 		}
-		fmt.Fprintf(w, "%d\t%s\t%s\t%v\t%s\n",
+		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n",
 			watcher.Id,
 			watcher.Name,
+			watcher.MachineName,
 			watcher.SourcePath,
-			watcher.Enabled,
 			created,
 		)
 	}

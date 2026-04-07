@@ -3,32 +3,37 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/fullstorydev/grpcui/standalone"
-	"github.com/ridgelines/go-config"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/reflection"
 	"log"
 	"log/slog"
 	"net"
 	"net/http"
 	"time"
+	"tiny-file-watcher/internal"
+
 	pb "tiny-file-watcher/gen/grpc"
 	config2 "tiny-file-watcher/server/config"
 	"tiny-file-watcher/server/database"
-	"tiny-file-watcher/server/filter"
 	"tiny-file-watcher/server/flush"
 	"tiny-file-watcher/server/interceptor"
+	"tiny-file-watcher/server/machine"
 	"tiny-file-watcher/server/redirection"
 	"tiny-file-watcher/server/watcher"
 	"tiny-file-watcher/server/web"
+
+	gooidc "github.com/coreos/go-oidc/v3/oidc"
+	"github.com/fullstorydev/grpcui/standalone"
+	"github.com/ridgelines/go-config"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/reflection"
 )
+
+var validator = config2.ServerConfigValidator
 
 // App holds all application-level components.
 type App struct {
 	config     *config.Config
 	db         *database.DB
-	mgr        *watcher.Manager
 	grpcServer *grpc.Server
 	grpcAddr   string
 	webHandler *web.Handler
@@ -37,7 +42,7 @@ type App struct {
 // NewApp loads configuration, opens the database, wires up all components,
 // and returns a fully initialised App ready to Run.
 func NewApp() (*App, error) {
-	cfg := config2.InitConfig()
+	cfg := internal.InitConfig(internal.ServerConfigPath(), &validator)
 
 	if err := cfg.Load(); err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
@@ -54,44 +59,58 @@ func NewApp() (*App, error) {
 	logger := slog.Default()
 	log.Printf("log_level=%s", logLevel)
 
+	// ── SSH configuration validation ──────────────────────────────────────────
+	privateKeysPath, _ := cfg.String("ssh.private_keys_path")
+	knownHostsPath, _ := cfg.String("ssh.known_hosts_path")
+	sshConfig := config2.SSHConfig{
+		PrivateKeysPath: privateKeysPath,
+		KnownHostsPath:  knownHostsPath,
+	}
+	if err := config2.ValidateSSHConfig(sshConfig, logger); err != nil {
+		return nil, fmt.Errorf("ssh config: %w", err)
+	}
+
 	grpcAddr, _ := cfg.String("grpc.address")
+	slog.Debug("gRPC address: " + grpcAddr)
 
-	dbName, _ := cfg.String("db.name")
-	dbPath := config2.DefaultDBPath + "/" + dbName
-
+	dbPath, _ := cfg.StringOr("database.path", internal.DatabasePath())
+	slog.Debug("database path: " + dbPath)
 	db, err := database.Open(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	mgr := watcher.NewManager(db, db, logger)
+	oidcCfg := oidcCfgFromConfig(cfg)
 
-	// Resume any watchers that were enabled before the last shutdown.
-	enabled, err := db.ListEnabledWatchers()
-	if err != nil {
-		return nil, fmt.Errorf("list enabled watchers: %w", err)
-	}
-	for _, w := range enabled {
-		key := watcher.WatcherKey{Id: w.ID, Name: w.Name}
-		if err := mgr.Start(key, w.SourcePath); err != nil {
-			log.Printf("warn: could not resume watcher %s (id %d) (%s): %v", w.Name, w.ID, w.SourcePath, err)
-		} else {
-			log.Printf("resumed watcher %s (id %d) → %s", w.Name, w.ID, w.SourcePath)
+	var tokenVerifier interceptor.TokenVerifier
+	if oidcCfg.Enabled {
+		provider, err := gooidc.NewProvider(context.Background(), oidcCfg.Issuer)
+		if err != nil {
+			return nil, fmt.Errorf("oidc provider discovery: %w", err)
 		}
+		v := provider.Verifier(&gooidc.Config{ClientID: oidcCfg.DeviceClientID})
+		tokenVerifier = interceptor.NewOIDCTokenVerifier(v)
+	} else {
+		tokenVerifier = interceptor.NewNoopVerifier()
 	}
 
-	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(interceptor.UnaryLoggingInterceptor))
+	unaryAuth, streamAuthInterceptor := interceptor.NewAuthInterceptors(tokenVerifier)
+
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(interceptor.UnaryLoggingInterceptor, unaryAuth),
+		grpc.ChainStreamInterceptor(streamAuthInterceptor),
+	)
 	reflection.Register(grpcServer)
-	watcherSvc := watcher.NewManagerService(db, db, mgr, logger)
+	watcherSvc := watcher.NewManagerService(db, db, db, logger, &sshConfig, db)
 	redirectionSvc := redirection.NewRedirectionService(db, db, db, logger)
 	flushSvc := flush.NewFlushService(db, logger)
-	filterSvc := filter.NewFilterService(db, logger)
+	machineSvc := machine.NewMachineService(db, logger)
 	pb.RegisterFileWatcherServiceServer(grpcServer, watcherSvc)
 	pb.RegisterFileRedirectionServiceServer(grpcServer, redirectionSvc)
 	pb.RegisterFileFlushServiceServer(grpcServer, flushSvc)
-	pb.RegisterWatcherFilterServiceServer(grpcServer, filterSvc)
+	pb.RegisterMachineServiceServer(grpcServer, machineSvc)
 
-	webHandler, err := web.New(watcherSvc, flushSvc, redirectionSvc, filterSvc, oidcCfgFromConfig(cfg))
+	webHandler, err := web.New(watcherSvc, flushSvc, redirectionSvc, machineSvc, oidcCfg)
 	if err != nil {
 		return nil, fmt.Errorf("create web handler: %w", err)
 	}
@@ -99,7 +118,6 @@ func NewApp() (*App, error) {
 	return &App{
 		config:     cfg,
 		db:         db,
-		mgr:        mgr,
 		grpcServer: grpcServer,
 		grpcAddr:   grpcAddr,
 		webHandler: webHandler,
@@ -175,13 +193,15 @@ func oidcCfgFromConfig(cfg *config.Config) web.OIDCConfig {
 	enabled, _ := cfg.Bool("oidc.enabled")
 	issuer, _ := cfg.String("oidc.issuer")
 	clientID, _ := cfg.String("oidc.client-id")
+	deviceClientID, _ := cfg.String("oidc.device-client-id")
 	clientSecret, _ := cfg.String("oidc.client-secret")
 	redirectURI, _ := cfg.String("oidc.redirect-uri")
 	return web.OIDCConfig{
-		Enabled:      enabled,
-		Issuer:       issuer,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		RedirectURI:  redirectURI,
+		Enabled:        enabled,
+		Issuer:         issuer,
+		ClientID:       clientID,
+		ClientSecret:   clientSecret,
+		DeviceClientID: deviceClientID,
+		RedirectURI:    redirectURI,
 	}
 }

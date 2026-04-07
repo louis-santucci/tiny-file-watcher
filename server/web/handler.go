@@ -19,7 +19,7 @@ var templateFS embed.FS
 // unexported mustEmbed methods in the generated gRPC server interfaces.
 type watcherService interface {
 	ListWatchers(context.Context, *pb.ListWatchersRequest) (*pb.ListWatchersResponse, error)
-	ToggleWatcher(context.Context, *pb.ToggleWatcherRequest) (*pb.Watcher, error)
+	SyncWatcher(context.Context, *pb.SyncWatcherRequest) (*pb.SyncWatcherResponse, error)
 }
 
 type flushService interface {
@@ -31,8 +31,10 @@ type redirectionService interface {
 	GetFileRedirection(context.Context, *pb.GetFileRedirectionRequest) (*pb.FileRedirection, error)
 }
 
-type filterService interface {
-	ListFilters(context.Context, *pb.ListFiltersRequest) (*pb.ListFiltersResponse, error)
+type machineService interface {
+	GetMachines(context.Context, *pb.EmptyRequest) (*pb.GetMachinesResponse, error)
+	CreateMachine(context.Context, *pb.InitializeMachineRequest) (*pb.MachineResponse, error)
+	DeleteMachine(context.Context, *pb.DeleteMachineRequest) (*pb.DeleteMachineResponse, error)
 }
 
 // Handler holds the HTTP mux and all service dependencies.
@@ -42,13 +44,13 @@ type Handler struct {
 	watcherSvc  watcherService
 	flushSvc    flushService
 	redirectSvc redirectionService
-	filterSvc   filterService
+	machineSvc  machineService
 	auth        *authProvider // nil when OIDC is disabled
 	sessions    *sessionStore // nil when OIDC is disabled
 }
 
 // pages lists the per-page templates that each embed "base.html".
-var pages = []string{"index.html", "watchers.html", "watcher.html", "login.html"}
+var pages = []string{"index.html", "watchers.html", "watcher.html", "machines.html", "machine.html", "login.html"}
 
 // New wires up the HTTP handler with the given service implementations.
 // When oidcCfg.Enabled is true the OIDC provider is initialised and all
@@ -57,7 +59,7 @@ func New(
 	watcherSvc watcherService,
 	flushSvc flushService,
 	redirectSvc redirectionService,
-	filterSvc filterService,
+	machineSvc machineService,
 	oidcCfg OIDCConfig,
 ) (*Handler, error) {
 	funcs := template.FuncMap{"join": strings.Join}
@@ -77,7 +79,7 @@ func New(
 		watcherSvc:  watcherSvc,
 		flushSvc:    flushSvc,
 		redirectSvc: redirectSvc,
-		filterSvc:   filterSvc,
+		machineSvc:  machineSvc,
 	}
 
 	if oidcCfg.Enabled {
@@ -97,9 +99,13 @@ func New(
 	h.mux.HandleFunc("GET /{$}", h.requireAuth(h.handleDashboard))
 	h.mux.HandleFunc("GET /watchers", h.requireAuth(h.handleWatcherList))
 	h.mux.HandleFunc("GET /watchers/{name}", h.requireAuth(h.handleWatcherDetail))
-	h.mux.HandleFunc("POST /watchers/{name}/toggle", h.requireAuth(h.handleToggle))
+	h.mux.HandleFunc("POST /watchers/{name}/sync", h.requireAuth(h.handleSync))
 	h.mux.HandleFunc("POST /watchers/{name}/flush", h.requireAuth(h.handleFlush))
 	h.mux.HandleFunc("POST /watchers/{name}/upload", h.requireAuth(h.handleUpload))
+	h.mux.HandleFunc("GET /machines", h.requireAuth(h.handleMachineList))
+	h.mux.HandleFunc("POST /machines", h.requireAuth(h.handleMachineCreate))
+	h.mux.HandleFunc("GET /machines/{name}", h.requireAuth(h.handleMachineDetail))
+	h.mux.HandleFunc("POST /machines/{name}/delete", h.requireAuth(h.handleMachineDelete))
 
 	return h, nil
 }

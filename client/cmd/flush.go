@@ -18,14 +18,14 @@ var flushCmd = &cobra.Command{
 	Short:   "Manage watcher flushes",
 }
 
-var showPath bool
+var flushShowPath bool
 
 func init() {
 	flushCmd.AddCommand(
 		pendingFilesCmd,
 		runFlushCmd,
 	)
-	pendingFilesCmd.Flags().BoolVarP(&showPath, "show-path", "p", false, "Show the full file path column in the output table")
+	pendingFilesCmd.Flags().BoolVarP(&flushShowPath, "show-path", "p", false, "Show the full file path column in the output table")
 }
 
 var pendingFilesCmd = &cobra.Command{
@@ -47,7 +47,7 @@ var pendingFilesCmd = &cobra.Command{
 			return nil
 		}
 
-		printWatchedFiles(resp.Files, showPath)
+		printFlushedWatchedFiles(resp.Files, flushShowPath)
 		return nil
 	},
 }
@@ -75,7 +75,7 @@ var runFlushCmd = &cobra.Command{
 	},
 }
 
-func printWatchedFiles(files []*pb.WatchedFile, showPath bool) {
+func printFlushedWatchedFiles(files []*pb.WatchedFile, showPath bool) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	if showPath {
 		fmt.Fprintln(w, "ID\tWATCHER\tFILE NAME\tFILE PATH")

@@ -2,8 +2,12 @@ package watcher
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"tiny-file-watcher/server/config"
 
+	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -15,25 +19,89 @@ import (
 // WatcherService implements the FileWatcherService gRPC server.
 type WatcherService struct {
 	pb.UnimplementedFileWatcherServiceServer
-	fileWatcherRepository FileWatcherRepository
-	fileRepository        FileRepository
-	manager               WatcherManager
+	fileWatcherRepository database.FileWatcherRepository
+	fileRepository        database.FileRepository
+	machineRepository     database.MachineRepository
+	transactor            database.Transactor
 	logger                *slog.Logger
+	sshConfig             *config.SSHConfig
+	// syncJobOpts are forwarded to every SyncJob created by this service.
+	// Used in tests to inject a local RemoteFS and bypass SSH.
+	syncJobOpts []SyncJobOption
 }
 
-func NewManagerService(fileWatcherRepository FileWatcherRepository, fileRepository FileRepository, mgr WatcherManager, logger *slog.Logger) *WatcherService {
-	return &WatcherService{fileWatcherRepository: fileWatcherRepository, manager: mgr, fileRepository: fileRepository, logger: logger}
+// WatcherServiceOption is a functional option for WatcherService.
+type WatcherServiceOption func(*WatcherService)
+
+// WithSyncJobOptions forwards the given SyncJobOptions to every SyncJob
+// created by this service.  Intended for use in tests.
+func WithSyncJobOptions(opts ...SyncJobOption) WatcherServiceOption {
+	return func(s *WatcherService) {
+		s.syncJobOpts = append(s.syncJobOpts, opts...)
+	}
+}
+
+func NewManagerService(fileWatcherRepository database.FileWatcherRepository, fileRepository database.FileRepository, machineRepository database.MachineRepository, logger *slog.Logger, sshConfig *config.SSHConfig, transactor database.Transactor, opts ...WatcherServiceOption) *WatcherService {
+	svc := &WatcherService{
+		fileWatcherRepository: fileWatcherRepository,
+		fileRepository:        fileRepository,
+		machineRepository:     machineRepository,
+		logger:                logger,
+		sshConfig:             sshConfig,
+		transactor:            transactor,
+	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
 }
 
 func (s *WatcherService) CreateWatcher(_ context.Context, req *pb.CreateWatcherRequest) (*pb.Watcher, error) {
 	if req.Name == "" || req.SourcePath == "" {
 		return nil, status.Error(codes.InvalidArgument, "name and source_path are required")
 	}
-	w, err := s.fileWatcherRepository.CreateWatcher(req.Name, req.SourcePath)
+	if req.MachineName == "" {
+		return nil, status.Error(codes.InvalidArgument, "machine_name is required: initialize this machine first with 'tfw machine create'")
+	}
+	w, err := s.fileWatcherRepository.CreateWatcher(req.Name, req.SourcePath, req.MachineName)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create watcher: %v", err)
 	}
+	if req.FlushExisting {
+		s.AddExistingFiles(w, s.fileRepository, s.logger)
+	}
+
 	return toProto(w), nil
+}
+
+func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo database.FileRepository, logger *slog.Logger) {
+	machine, err := s.machineRepository.GetMachineByName(w.MachineName)
+	if err != nil {
+		logger.Error("fetch machine for watcher", "machine_name", w.MachineName, "error", err)
+	}
+	syncJob := NewSyncJob(logger, w, machine, s.sshConfig, nil, fileRepo, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
+	if _, err := syncJob.Run(true); err != nil {
+		logger.Error("add existing files for watcher", "watcher_name", w.Name, "error", err)
+	}
+}
+
+func (s *WatcherService) ListWatchedFiles(_ context.Context, req *pb.ListWatchedFilesRequest) (*pb.ListWatchedFilesResponse, error) {
+	if req.WatcherName == "" {
+		return nil, status.Error(codes.InvalidArgument, "watcher_name is required")
+	}
+	files, err := s.fileRepository.ListWatchedFiles(req.WatcherName)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list watched files: %v", err)
+	}
+	resp := &pb.ListWatchedFilesResponse{}
+	for _, f := range files {
+		resp.Files = append(resp.Files, &pb.WatchedFile{
+			FilePath:   f.FilePath,
+			Flushed:    f.Flushed,
+			DetectedAt: timestamppb.New(f.DetectedAt),
+		})
+	}
+	return resp, nil
 }
 
 func (s *WatcherService) GetWatcherById(_ context.Context, req *pb.GetWatcherByIdRequest) (*pb.Watcher, error) {
@@ -52,8 +120,16 @@ func (s *WatcherService) GetWatcherByName(_ context.Context, req *pb.GetWatcherB
 	return toProto(w), nil
 }
 
-func (s *WatcherService) ListWatchers(_ context.Context, _ *pb.ListWatchersRequest) (*pb.ListWatchersResponse, error) {
-	watchers, err := s.fileWatcherRepository.ListWatchers()
+func (s *WatcherService) ListWatchers(_ context.Context, req *pb.ListWatchersRequest) (*pb.ListWatchersResponse, error) {
+	var (
+		watchers []*database.FileWatcher
+		err      error
+	)
+	if req.MachineName != nil && *req.MachineName != "" {
+		watchers, err = s.fileWatcherRepository.ListWatchersByMachine(*req.MachineName)
+	} else {
+		watchers, err = s.fileWatcherRepository.ListWatchers()
+	}
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list watchers: %v", err)
 	}
@@ -79,45 +155,141 @@ func (s *WatcherService) UpdateWatcher(_ context.Context, req *pb.UpdateWatcherR
 }
 
 func (s *WatcherService) DeleteWatcher(_ context.Context, req *pb.DeleteWatcherRequest) (*pb.DeleteWatcherResponse, error) {
-	watcher, err := s.fileWatcherRepository.GetWatcherByName(req.Name)
+	_, err := s.fileWatcherRepository.GetWatcherByName(req.Name)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "watcher %s not found", req.Name)
 	}
-	// Stop goroutine before deleting from DB.
-	key := WatcherKey{Id: watcher.ID, Name: watcher.Name}
-	s.manager.Stop(key)
 	if err := s.fileWatcherRepository.DeleteWatcher(req.Name); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete watcher: %v", err)
 	}
 	return &pb.DeleteWatcherResponse{Success: true}, nil
 }
 
-func (s *WatcherService) ToggleWatcher(_ context.Context, req *pb.ToggleWatcherRequest) (*pb.Watcher, error) {
-	w, err := s.fileWatcherRepository.ToggleWatcher(req.Name)
+// SyncWatcher walks the watcher's source_path, diffs against the current
+// unflushed watched_files in the DB, and adds/removes entries accordingly.
+// It validates that the caller's machine (identified by token) owns the watcher.
+func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherRequest) (*pb.SyncWatcherResponse, error) {
+	if req.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	if req.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "token is required")
+	}
+
+	w, err := s.fileWatcherRepository.GetWatcherByName(req.Name)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "toggle watcher: %v", err)
+		return nil, status.Errorf(codes.NotFound, "watcher %s not found", req.Name)
 	}
-	key := WatcherKey{Id: w.ID, Name: w.Name}
-	if w.Enabled {
-		if err := s.manager.Start(key, w.SourcePath); err != nil {
-			// Roll back toggle on failure.
-			_, _ = s.fileWatcherRepository.ToggleWatcher(req.Name)
-			return nil, status.Errorf(codes.Internal, "start watcher goroutine: %v", err)
-		}
-	} else {
-		s.manager.Stop(key)
+
+	// Verify the caller's machine owns this watcher.
+	callerMachine, err := s.machineRepository.GetMachineByToken(req.Token)
+	if err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "machine with token %q is not registered", req.Token)
 	}
-	return toProto(w), nil
+	if callerMachine.Name != w.MachineName {
+		return nil, status.Errorf(codes.PermissionDenied,
+			"watcher %q belongs to machine %q, but request comes from machine %q",
+			req.Name, w.MachineName, callerMachine.Name)
+	}
+
+	var publicKey ssh.PublicKey
+	syncJob := NewSyncJob(s.logger, w, callerMachine, s.sshConfig, publicKey, s.fileRepository, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
+
+	result, err := syncJob.Run(false)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "sync watcher: %v", err)
+	}
+
+	return &pb.SyncWatcherResponse{
+		AddedCount:   int64(result.AddedCount),
+		RemovedCount: int64(result.RemovedCount),
+		AddedFiles:   result.AddedFiles,
+		RemovedFiles: result.RemovedFiles,
+	}, nil
+}
+
+// StreamSyncWatcher is the server-streaming variant of SyncWatcher.
+// It sends LOG events at each major step of the sync process and a final
+// RESULT event containing the SyncWatcherResponse.
+func (s *WatcherService) StreamSyncWatcher(req *pb.SyncWatcherRequest, stream grpc.ServerStreamingServer[pb.SyncWatcherEvent]) error {
+	if req.Name == "" {
+		return status.Error(codes.InvalidArgument, "name is required")
+	}
+	if req.Token == "" {
+		return status.Error(codes.InvalidArgument, "token is required")
+	}
+
+	w, err := s.fileWatcherRepository.GetWatcherByName(req.Name)
+	if err != nil {
+		return status.Errorf(codes.NotFound, "watcher %s not found", req.Name)
+	}
+
+	// Verify the caller's machine owns this watcher.
+	callerMachine, err := s.machineRepository.GetMachineByToken(req.Token)
+	if err != nil {
+		return status.Errorf(codes.PermissionDenied, "machine with token %q is not registered", req.Token)
+	}
+	if callerMachine.Name != w.MachineName {
+		return status.Errorf(codes.PermissionDenied,
+			"watcher %q belongs to machine %q, but request comes from machine %q",
+			req.Name, w.MachineName, callerMachine.Name)
+	}
+
+	// sendLog forwards a human-readable progress message to the client as a
+	// LOG event.  Errors are returned so the caller can abort early.
+	sendLog := func(msg string) error {
+		return stream.Send(&pb.SyncWatcherEvent{
+			Type:    pb.SyncWatcherEvent_LOG,
+			Message: msg,
+		})
+	}
+
+	var publicKey ssh.PublicKey
+	syncJob := NewSyncJob(
+		s.logger, w, callerMachine, s.sshConfig, publicKey,
+		s.fileRepository, s.fileWatcherRepository, s.transactor,
+		append(s.syncJobOpts, WithLogCallback(func(msg string) {
+			// Best-effort: ignore send errors inside the callback; the Run()
+			// caller will surface any stream error through the returned error.
+			_ = sendLog(msg)
+		}))...,
+	)
+
+	result, err := syncJob.Run(false)
+	if err != nil {
+		return status.Errorf(codes.Internal, "sync watcher: %v", err)
+	}
+
+	// Send a final summary LOG before the RESULT event.
+	if err := sendLog(fmt.Sprintf("sync complete: %d file(s) added, %d file(s) removed", result.AddedCount, result.RemovedCount)); err != nil {
+		return status.Errorf(codes.Internal, "stream send: %v", err)
+	}
+
+	// Send the RESULT event — this is the only message that carries the full
+	// SyncWatcherResponse.
+	if err := stream.Send(&pb.SyncWatcherEvent{
+		Type: pb.SyncWatcherEvent_RESULT,
+		Result: &pb.SyncWatcherResponse{
+			AddedCount:   int64(result.AddedCount),
+			RemovedCount: int64(result.RemovedCount),
+			AddedFiles:   result.AddedFiles,
+			RemovedFiles: result.RemovedFiles,
+		},
+	}); err != nil {
+		return status.Errorf(codes.Internal, "stream send result: %v", err)
+	}
+
+	return nil
 }
 
 func toProto(w *database.FileWatcher) *pb.Watcher {
 	return &pb.Watcher{
-		Id:         w.ID,
-		Name:       w.Name,
-		SourcePath: w.SourcePath,
-		Enabled:    w.Enabled,
-		CreatedAt:  timestamppb.New(w.CreatedAt),
-		UpdatedAt:  timestamppb.New(w.UpdatedAt),
+		Id:          w.ID,
+		Name:        w.Name,
+		SourcePath:  w.SourcePath,
+		MachineName: w.MachineName,
+		CreatedAt:   timestamppb.New(w.CreatedAt),
+		UpdatedAt:   timestamppb.New(w.UpdatedAt),
 	}
 }
 

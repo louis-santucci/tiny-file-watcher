@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	pb "tiny-file-watcher/gen/grpc"
 	"tiny-file-watcher/server/database"
-	"tiny-file-watcher/server/watcher"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -14,13 +13,13 @@ import (
 
 type RedirectionService struct {
 	pb.UnimplementedFileRedirectionServiceServer
-	fileWatcherRepository watcher.FileWatcherRepository
-	fileRepository        watcher.FileRepository
-	redirectionRepository RedirectionRepository
+	fileWatcherRepository database.FileWatcherRepository
+	fileRepository        database.FileRepository
+	redirectionRepository database.RedirectionRepository
 	logger                *slog.Logger
 }
 
-func NewRedirectionService(fileWatcherRepository watcher.FileWatcherRepository, fileRepository watcher.FileRepository, redirectionRepository RedirectionRepository, logger *slog.Logger) *RedirectionService {
+func NewRedirectionService(fileWatcherRepository database.FileWatcherRepository, fileRepository database.FileRepository, redirectionRepository database.RedirectionRepository, logger *slog.Logger) *RedirectionService {
 	return &RedirectionService{fileWatcherRepository: fileWatcherRepository, fileRepository: fileRepository, redirectionRepository: redirectionRepository, logger: logger}
 }
 

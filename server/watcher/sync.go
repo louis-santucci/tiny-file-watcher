@@ -2,21 +2,58 @@ package watcher
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	. "tiny-file-watcher/internal"
 	"tiny-file-watcher/server/config"
 	"tiny-file-watcher/server/database"
 
 	"github.com/kr/fs"
+	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 )
 
-// SyncJob orchestrates a single reconciliation run for one watcher:
-// it walks the remote source directory, compares the results against the
-// database, and persists any additions or removals in a single transaction.
+// RemoteFS abstracts the file-system operations performed against the remote
+// machine during a sync.  In production the SFTP-backed implementation is
+// used; in tests a local-filesystem implementation can be injected instead.
+type RemoteFS interface {
+	FileOpener
+	// Walk returns a Walker rooted at the given path.
+	Walk(path string) *fs.Walker
+}
+
+// sftpRemoteFS adapts *sftp.Client to the RemoteFS interface.
+type sftpRemoteFS struct{ c *sftp.Client }
+
+func (s sftpRemoteFS) OpenFile(path string, f int) (io.ReadCloser, error) {
+	return s.c.OpenFile(path, f)
+}
+
+func (s sftpRemoteFS) Walk(path string) *fs.Walker {
+	return s.c.Walk(path)
+}
+
+// localRemoteFS implements RemoteFS against the local filesystem.
+// It is used by unit tests to avoid dialling SSH.
+type localRemoteFS struct{}
+
+// LocalRemoteFS returns a RemoteFS that uses the local filesystem.
+// Intended for use in tests.
+func LocalRemoteFS() RemoteFS { return localRemoteFS{} }
+
+func (localRemoteFS) OpenFile(path string, _ int) (io.ReadCloser, error) {
+	return os.OpenFile(path, os.O_RDONLY, 0)
+}
+
+func (localRemoteFS) Walk(path string) *fs.Walker {
+	return fs.Walk(path)
+}
+
 type SyncJob struct {
 	watcher           *database.FileWatcher
 	machine           *database.Machine
@@ -34,14 +71,13 @@ type SyncJob struct {
 type SyncJobOption func(*SyncJob)
 
 // WithRemoteFS injects a custom RemoteFS implementation into the SyncJob,
-// bypassing the SSH/SFTP dial. Intended for use in tests.
+// bypassing the SSH/SFTP dial.  Intended for use in tests.
 func WithRemoteFS(rfs RemoteFS) SyncJobOption {
 	return func(j *SyncJob) {
 		j.remoteFS = rfs
 	}
 }
 
-// SyncResult summarises the outcome of a single sync run.
 type SyncResult struct {
 	AddedCount   int32
 	RemovedCount int32
@@ -49,18 +85,7 @@ type SyncResult struct {
 	RemovedFiles []string
 }
 
-// NewSyncJob constructs a SyncJob with the provided dependencies.
-func NewSyncJob(
-	logger *slog.Logger,
-	watcher *database.FileWatcher,
-	machine *database.Machine,
-	sshConfig *config.SSHConfig,
-	publicKey ssh.PublicKey,
-	fileRepo database.FileRepository,
-	watcherRepo database.FileWatcherRepository,
-	transactor database.Transactor,
-	opts ...SyncJobOption,
-) *SyncJob {
+func NewSyncJob(logger *slog.Logger, watcher *database.FileWatcher, machine *database.Machine, sshConfig *config.SSHConfig, publicKey ssh.PublicKey, fileRepo database.FileRepository, watcherRepo database.FileWatcherRepository, transactor database.Transactor, opts ...SyncJobOption) *SyncJob {
 	j := &SyncJob{
 		watcher:           watcher,
 		machine:           machine,
@@ -77,12 +102,10 @@ func NewSyncJob(
 	return j
 }
 
-// Run executes the sync job. When flush is true newly detected files are
-// immediately marked for flushing in the database.
 func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
 	j.logger.Info("starting sync job")
 
-	rfs, err := j.resolveRemoteFS()
+	rfs, err := j.openRemoteFS()
 	if err != nil {
 		return nil, err
 	}
@@ -92,8 +115,10 @@ func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
 		j.logger.Error("failed to list watched files", "error", err)
 		return nil, err
 	}
-
-	watchedFilesSet := buildWatchedFilesSet(watchedFiles)
+	watchedFilesSet := NewSetWithSize[string](len(watchedFiles))
+	for _, watchedFile := range watchedFiles {
+		watchedFilesSet.Add(watchedFile.FilePath)
+	}
 
 	ignorer, err := LoadIgnore(rfs, j.watcher.SourcePath+"/"+ignoreFileName, j.logger)
 	if err != nil {
@@ -101,81 +126,100 @@ func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
 		ignorer = noopIgnorer{}
 	}
 
-	onDisk, addedFiles, err := j.walkSourcePath(rfs, watchedFilesSet, ignorer)
+	// using batch of results, check in db if file exists for this file watcher, if not, create it, if yes, do nothing
+
+	onDisk, addedFiles, err := j.handleCurrentPaths(rfs, watchedFilesSet, ignorer)
 	if err != nil {
-		j.logger.Error("sync: error walking source path", "error", err, "watcher", j.watcher.Name)
+		j.logger.Error("sync: error handling current paths", "error", err, "watcher", j.watcher.Name)
 		return nil, err
 	}
 
-	removedFiles := j.detectRemovals(watchedFiles, onDisk)
+	removedFiles := make([]string, 0)
+	for _, watchedFile := range watchedFiles {
+		if !onDisk.Contains(watchedFile.FilePath) {
+			j.logger.Debug("sync: removing watched file that no longer exists on disk", "path", watchedFile.FilePath, "watcher", j.watcher.Name)
+			removedFiles = append(removedFiles, watchedFile.FilePath)
+		}
+	}
 
-	if err = j.saveUpdates(addedFiles, removedFiles, flush); err != nil {
+	// bulk insert new files
+	// bulk remove deleted files
+	err = j.saveUpdates(*addedFiles, removedFiles, flush)
+	if err != nil {
 		j.logger.Error("sync: error saving updates to database", "error", err, "watcher", j.watcher.Name)
 		return nil, err
 	}
 
 	results := &SyncResult{
-		AddedCount:   int32(len(addedFiles)),
+		AddedCount:   int32(len(*addedFiles)),
 		RemovedCount: int32(len(removedFiles)),
-		AddedFiles:   slices.Collect(maps.Values(addedFiles)),
+		AddedFiles:   slices.Collect(maps.Values(*addedFiles)),
 		RemovedFiles: removedFiles,
 	}
 
-	j.logger.Info("sync job finished",
-		"added_count", results.AddedCount,
-		"removed_count", results.RemovedCount,
-		"watcher", j.watcher.Name,
-	)
+	j.logger.Info("sync job finished", "added_count", results.AddedCount, "removed_count", results.RemovedCount, "watcher", j.watcher.Name)
 
 	return results, nil
 }
 
-// resolveRemoteFS returns the injected RemoteFS when available, otherwise it
-// establishes a live SSH/SFTP connection.
-func (j *SyncJob) resolveRemoteFS() (RemoteFS, error) {
+// openRemoteFS returns the RemoteFS to use for this sync run.
+// If one was injected via WithRemoteFS it is returned directly.
+// Otherwise an SSH/SFTP connection is established.
+func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 	if j.remoteFS != nil {
 		return j.remoteFS, nil
 	}
-	return dialSFTP(j.logger, j.machine, j.sshConfig)
-}
 
-// buildWatchedFilesSet converts the slice of watched files returned by the
-// repository into a set of file paths for O(1) lookup.
-func buildWatchedFilesSet(watchedFiles []*database.WatchedFile) *Set[string] {
-	s := NewSetWithSize[string](len(watchedFiles))
-	for _, f := range watchedFiles {
-		s.Add(f.FilePath)
+	j.logger.Debug("private key path", "path", filepath.Join(j.sshConfig.PrivateKeysPath, j.machine.SSHKeyName))
+
+	sshConfig := ssh.ClientConfig{
+		User: j.machine.SSHUser,
+		Auth: []ssh.AuthMethod{
+			ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
+				// read private key from disk and return it as a signer
+				keyPath := filepath.Join(j.sshConfig.PrivateKeysPath, j.machine.SSHKeyName)
+				keyBytes, err := os.ReadFile(keyPath)
+				if err != nil {
+					return nil, err
+				}
+				key, err := ssh.ParsePrivateKey(keyBytes)
+				if err != nil {
+					return nil, err
+				}
+				return []ssh.Signer{key}, nil
+			}),
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // For simplicity; consider a more secure approach for production.
 	}
-	return s
-}
 
-// detectRemovals returns the paths that are tracked in the database but are no
-// longer present on disk.
-func (j *SyncJob) detectRemovals(watchedFiles []*database.WatchedFile, onDisk *Set[string]) []string {
-	removed := make([]string, 0)
-	for _, f := range watchedFiles {
-		if !onDisk.Contains(f.FilePath) {
-			j.logger.Debug("sync: removing watched file that no longer exists on disk",
-				"path", f.FilePath,
-				"watcher", j.watcher.Name,
-			)
-			removed = append(removed, f.FilePath)
-		}
+	// SSH into the machines and sync the files for the given watcher
+	sshUrl := j.machine.IP + ":" + strconv.Itoa(int(j.machine.SSHPort))
+	j.logger.Debug("sync: SSH URL: " + sshUrl)
+	sshConnection, err := ssh.Dial("tcp", sshUrl, &sshConfig)
+	if err != nil {
+		j.logger.Error("failed to connect to machine", "error", err)
+		return nil, err
 	}
-	return removed
+	sftpClient, err := sftp.NewClient(sshConnection)
+	if err != nil {
+		j.logger.Error("failed to create SFTP sftpClient", "error", err)
+		sshConnection.Close()
+		return nil, err
+	}
+	return sftpRemoteFS{c: sftpClient}, nil
 }
 
-// saveUpdates persists additions and removals inside a single database
-// transaction.
 func (j *SyncJob) saveUpdates(addedFiles map[string]string, removedFiles []string, flush bool) error {
 	err := j.transactor.WithTransaction(context.Background(), func(repo database.TransactionalFileRepository) error {
 		if len(addedFiles) > 0 {
-			if _, err := repo.BulkAddWatchedFiles(j.watcher.Name, addedFiles, flush); err != nil {
+			_, err := repo.BulkAddWatchedFiles(j.watcher.Name, addedFiles, flush)
+			if err != nil {
 				return err
 			}
 		}
 		if len(removedFiles) > 0 {
-			if err := repo.BulkRemoveWatchedFiles(j.watcher.Name, removedFiles); err != nil {
+			err := repo.BulkRemoveWatchedFiles(j.watcher.Name, removedFiles)
+			if err != nil {
 				return err
 			}
 		}
@@ -188,60 +232,42 @@ func (j *SyncJob) saveUpdates(addedFiles map[string]string, removedFiles []strin
 	return nil
 }
 
-// walkSourcePath recursively walks the watcher's source directory on the remote
-// filesystem. It returns:
-//   - onDisk: set of every file path currently present under the source directory
-//   - addedFiles: map of filename → full path for files not yet tracked in the DB
-func (j *SyncJob) walkSourcePath(rfs RemoteFS, watchedFilesSet *Set[string], ignorer Ignorer) (*Set[string], map[string]string, error) {
+func (j *SyncJob) handleCurrentPaths(rfs RemoteFS, watchedFilesSet *Set[string], ignorer Ignorer) (*Set[string], *map[string]string, error) {
 	onDisk := NewSet[string]()
 	addedFiles := make(map[string]string)
 
-	// BFS over the directory tree using a walker queue so that subdirectories
-	// discovered during the walk are also fully traversed.
+	// walk the source path and check if the file exists in the db for this watcher, if not, create it, if yes, do nothing
 	queue := []*fs.Walker{rfs.Walk(j.watcher.SourcePath)}
-	visited := NewSet[string]()
-	visited.Add(j.watcher.SourcePath)
-
+	analyzed := NewSet[string]()
+	analyzed.Add(j.watcher.SourcePath)
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
-
 		for current.Step() {
-			if err := current.Err(); err != nil {
-				j.logger.Error("sync: error walking source path",
-					"error", err,
-					"watcher", j.watcher.Name,
-					"path", current.Path(),
-				)
+			if current.Err() != nil {
+				j.logger.Error("sync: error walking source path", "error", current.Err(), "watcher", j.watcher.Name, "path", current.Path())
 				continue
 			}
-
 			if current.Stat().IsDir() {
-				j.handleDirectory(current, queue, visited)
+				if !analyzed.Contains(current.Path()) {
+					j.logger.Debug("sync: adding subdirectory", "path", current.Path(), "watcher", j.watcher.Name)
+					queue = append(queue, rfs.Walk(current.Path())) // enqueue subdirectory
+					analyzed.Add(current.Path())
+				}
 				continue
 			}
-
-			// Skip files matched by .tfwignore or the ignore file itself.
-			if current.Stat().Name() == ignoreFileName || ignorer.MatchesPath(j.watcher.SourcePath, current.Path()) {
-				j.logger.Debug("sync: skipping ignored file", "path", current.Path(), "watcher", j.watcher.Name)
+			if ignorer.MatchesPath(j.watcher.SourcePath, current.Path()) || current.Stat().Name() == ".tfwignore" {
+				j.logger.Debug("sync: skipping ignored file (.tfwignore rule)", "path", current.Path(), "watcher", j.watcher.Name)
 				continue
 			}
-
 			if !watchedFilesSet.Contains(current.Path()) {
-				j.logger.Debug("sync: new file detected", "path", current.Path())
-				addedFiles[filepath.Base(current.Path())] = current.Path()
+				j.logger.Debug("sync: adding new watched file", "path", current.Path())
+				filename := filepath.Base(current.Path())
+				addedFiles[filename] = current.Path()
 			}
 			onDisk.Add(current.Path())
 		}
 	}
 
-	return onDisk, addedFiles, nil
-}
-
-func (j *SyncJob) handleDirectory(current *fs.Walker, queue []*fs.Walker, visited *Set[string]) {
-	if !visited.Contains(current.Path()) {
-		j.logger.Debug("sync: entering subdirectory", "path", current.Path(), "watcher", j.watcher.Name)
-		queue = append(queue, j.remoteFS.Walk(current.Path()))
-		visited.Add(current.Path())
-	}
+	return onDisk, &addedFiles, nil
 }

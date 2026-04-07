@@ -1,7 +1,9 @@
 package watcher
 
 import (
+import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"maps"
@@ -59,7 +61,6 @@ type SyncJob struct {
 	machine           *database.Machine
 	logger            *slog.Logger
 	sshConfig         *config.SSHConfig
-	publicKey         ssh.PublicKey
 	fileRepository    database.FileRepository
 	watcherRepository database.FileWatcherRepository
 	transactor        database.Transactor
@@ -105,13 +106,12 @@ type SyncResult struct {
 	RemovedFiles []string
 }
 
-func NewSyncJob(logger *slog.Logger, watcher *database.FileWatcher, machine *database.Machine, sshConfig *config.SSHConfig, publicKey ssh.PublicKey, fileRepo database.FileRepository, watcherRepo database.FileWatcherRepository, transactor database.Transactor, opts ...SyncJobOption) *SyncJob {
+func NewSyncJob(logger *slog.Logger, watcher *database.FileWatcher, machine *database.Machine, sshConfig *config.SSHConfig, fileRepo database.FileRepository, watcherRepo database.FileWatcherRepository, transactor database.Transactor, opts ...SyncJobOption) *SyncJob {
 	j := &SyncJob{
 		watcher:           watcher,
 		machine:           machine,
 		logger:            logger,
 		sshConfig:         sshConfig,
-		publicKey:         publicKey,
 		fileRepository:    fileRepo,
 		watcherRepository: watcherRepo,
 		transactor:        transactor,
@@ -190,7 +190,8 @@ func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
 
 // openRemoteFS returns the RemoteFS to use for this sync run.
 // If one was injected via WithRemoteFS it is returned directly.
-// Otherwise an SSH/SFTP connection is established.
+// Otherwise an SSH/SFTP connection is established using a FixedHostKey
+// loaded from the path stored on the machine record.
 func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 	if j.remoteFS != nil {
 		return j.remoteFS, nil
@@ -198,11 +199,20 @@ func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 
 	j.logger.Debug("private key path", "path", filepath.Join(j.sshConfig.PrivateKeysPath, j.machine.SSHKeyName))
 
+	// Load the host's public key and build a FixedHostKey callback.
+	hostKeyBytes, err := os.ReadFile(j.machine.SSHHostPublicKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("read host public key %q: %w", j.machine.SSHHostPublicKeyPath, err)
+	}
+	hostPubKey, _, _, _, err := ssh.ParseAuthorizedKey(hostKeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse host public key %q: %w", j.machine.SSHHostPublicKeyPath, err)
+	}
+
 	sshConfig := ssh.ClientConfig{
 		User: j.machine.SSHUser,
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
-				// read private key from disk and return it as a signer
 				keyPath := filepath.Join(j.sshConfig.PrivateKeysPath, j.machine.SSHKeyName)
 				keyBytes, err := os.ReadFile(keyPath)
 				if err != nil {
@@ -215,10 +225,9 @@ func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 				return []ssh.Signer{key}, nil
 			}),
 		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // For simplicity; consider a more secure approach for production.
+		HostKeyCallback: ssh.FixedHostKey(hostPubKey),
 	}
 
-	// SSH into the machines and sync the files for the given watcher
 	sshUrl := j.machine.IP + ":" + strconv.Itoa(int(j.machine.SSHPort))
 	j.logger.Debug("sync: SSH URL: " + sshUrl)
 	sshConnection, err := ssh.Dial("tcp", sshUrl, &sshConfig)

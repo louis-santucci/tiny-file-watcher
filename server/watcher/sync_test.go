@@ -24,7 +24,7 @@ import (
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-var testSSHConfig = &config.SSHConfig{PrivateKeysPath: "/tmp/keys", KnownHostsPath: "/tmp/known_hosts"}
+var testSSHConfig = &config.SSHConfig{PrivateKeysPath: "/tmp/keys"}
 
 func newSyncJob(
 	dir string,
@@ -41,7 +41,6 @@ func newSyncJob(
 		w,
 		machine,
 		testSSHConfig,
-		nil,
 		fileRepo,
 		fileWatcherRepo,
 		transactor,

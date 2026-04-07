@@ -61,10 +61,8 @@ func NewApp() (*App, error) {
 
 	// ── SSH configuration validation ──────────────────────────────────────────
 	privateKeysPath, _ := cfg.String("ssh.private_keys_path")
-	knownHostsPath, _ := cfg.String("ssh.known_hosts_path")
 	sshConfig := config2.SSHConfig{
 		PrivateKeysPath: privateKeysPath,
-		KnownHostsPath:  knownHostsPath,
 	}
 	if err := config2.ValidateSSHConfig(sshConfig, logger); err != nil {
 		return nil, fmt.Errorf("ssh config: %w", err)

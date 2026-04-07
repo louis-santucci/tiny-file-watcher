@@ -21,10 +21,11 @@ var machineCmd = &cobra.Command{
 }
 
 var (
-	createMachineIP         string
-	createMachineSSHPort    int32
-	createMachineSSHUser    string
-	createMachineSSHKeyPath string
+	createMachineIP             string
+	createMachineSSHPort        int32
+	createMachineSSHUser        string
+	createMachineSSHKeyPath     string
+	createMachineSSHHostKeyPath string
 )
 
 func init() {
@@ -32,9 +33,11 @@ func init() {
 	createMachineCmd.Flags().Int32Var(&createMachineSSHPort, "ssh-port", 22, "SSH port of the machine")
 	createMachineCmd.Flags().StringVar(&createMachineSSHUser, "ssh-user", "", "SSH user for the machine (required)")
 	createMachineCmd.Flags().StringVar(&createMachineSSHKeyPath, "ssh-key", "", "Path to the SSH private key file (required)")
+	createMachineCmd.Flags().StringVar(&createMachineSSHHostKeyPath, "ssh-host-key", "", "Server-side path to the host public key file in authorized_keys format, e.g. obtained via ssh-keyscan (required)")
 	_ = createMachineCmd.MarkFlagRequired("ip")
 	_ = createMachineCmd.MarkFlagRequired("ssh-user")
 	_ = createMachineCmd.MarkFlagRequired("ssh-key")
+	_ = createMachineCmd.MarkFlagRequired("ssh-host-key")
 
 	machineCmd.AddCommand(createMachineCmd, listMachinesCmd, deleteMachineCmd)
 }
@@ -57,12 +60,13 @@ Its content is sent to the server and stored for future SSH connections.`,
 		defer cancel()
 
 		resp, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{
-			Name:          args[0],
-			Token:         token,
-			Ip:            createMachineIP,
-			SshPort:       createMachineSSHPort,
-			SshUser:       createMachineSSHUser,
-			SshPrivateKey: createMachineSSHKeyPath,
+			Name:                 args[0],
+			Token:                token,
+			Ip:                   createMachineIP,
+			SshPort:              createMachineSSHPort,
+			SshUser:              createMachineSSHUser,
+			SshPrivateKey:        createMachineSSHKeyPath,
+			SshHostPublicKeyPath: createMachineSSHHostKeyPath,
 		})
 		if err != nil {
 			return err
@@ -121,14 +125,14 @@ var deleteMachineCmd = &cobra.Command{
 
 func printMachines(machines []*pb.MachineResponse) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tIP\tSSH PORT\tSSH USER\tSSH PRIVATE KEY PATH\tTOKEN\tCREATED AT")
-	fmt.Fprintln(w, "----\t--\t--------\t--------\t--------------------\t-----\t----------")
+	fmt.Fprintln(w, "NAME\tIP\tSSH PORT\tSSH USER\tSSH PRIVATE KEY\tSSH HOST PUBLIC KEY PATH\tTOKEN\tCREATED AT")
+	fmt.Fprintln(w, "----\t--\t--------\t--------\t---------------\t------------------------\t-----\t----------")
 	for _, m := range machines {
 		created := "-"
 		if m.CreatedAt != nil {
 			created = m.CreatedAt.AsTime().Format(time.DateTime)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\t%s\n", m.Name, m.Ip, m.SshPort, m.SshUser, m.SshPrivateKey, m.Token, created)
+		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\t%s\t%s\n", m.Name, m.Ip, m.SshPort, m.SshUser, m.SshPrivateKey, m.SshHostPublicKeyPath, m.Token, created)
 	}
 	w.Flush()
 }

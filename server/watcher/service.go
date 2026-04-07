@@ -7,7 +7,6 @@ import (
 	"sync"
 	"tiny-file-watcher/server/config"
 
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -97,7 +96,7 @@ func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo data
 	if err != nil {
 		logger.Error("fetch machine for watcher", "machine_name", w.MachineName, "error", err)
 	}
-	syncJob := NewSyncJob(logger, w, machine, s.sshConfig, nil, fileRepo, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
+	syncJob := NewSyncJob(logger, w, machine, s.sshConfig, fileRepo, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
 	if _, err := syncJob.Run(true); err != nil {
 		logger.Error("add existing files for watcher", "watcher_name", w.Name, "error", err)
 	}
@@ -216,8 +215,7 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 	}
 	defer unlock()
 
-	var publicKey ssh.PublicKey
-	syncJob := NewSyncJob(s.logger, w, callerMachine, s.sshConfig, publicKey, s.fileRepository, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
+	syncJob := NewSyncJob(s.logger, w, callerMachine, s.sshConfig, s.fileRepository, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
 
 	result, err := syncJob.Run(false)
 	if err != nil {
@@ -274,9 +272,8 @@ func (s *WatcherService) StreamSyncWatcher(req *pb.SyncWatcherRequest, stream gr
 		})
 	}
 
-	var publicKey ssh.PublicKey
 	syncJob := NewSyncJob(
-		s.logger, w, callerMachine, s.sshConfig, publicKey,
+		s.logger, w, callerMachine, s.sshConfig,
 		s.fileRepository, s.fileWatcherRepository, s.transactor,
 		append(s.syncJobOpts, WithLogCallback(func(msg string) {
 			// Best-effort: ignore send errors inside the callback; the Run()

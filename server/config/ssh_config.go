@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -12,27 +11,13 @@ import (
 // SSHConfig holds the resolved SSH configuration paths.
 type SSHConfig struct {
 	PrivateKeysPath string
-	KnownHostsPath  string
 }
 
-// ValidateSSHConfig checks at startup that:
-//   - ssh.known_hosts_path exists on disk (fatal if not)
-//   - every private key file found under ssh.private_keys_path has strict
-//     0400 permissions; if not, a WARNING is logged but startup continues.
+// ValidateSSHConfig checks at startup that every private key file found under
+// ssh.private_keys_path has strict 0400 permissions; if not, a WARNING is
+// logged but startup continues.
 func ValidateSSHConfig(cfg SSHConfig, logger *slog.Logger) error {
-	// ── known_hosts ──────────────────────────────────────────────────────────
-	if _, err := os.Stat(cfg.KnownHostsPath); os.IsNotExist(err) {
-		return fmt.Errorf("ssh.known_hosts_path %q does not exist", cfg.KnownHostsPath)
-	} else if err != nil {
-		return fmt.Errorf("ssh.known_hosts_path %q: %w", cfg.KnownHostsPath, err)
-	}
-
-	// ── private keys ─────────────────────────────────────────────────────────
-	if err := checkKeyPermissions(cfg.PrivateKeysPath, logger); err != nil {
-		return err
-	}
-
-	return nil
+	return checkKeyPermissions(cfg.PrivateKeysPath, logger)
 }
 
 // checkKeyPermissions scans the directory at dirPath and logs a warning for

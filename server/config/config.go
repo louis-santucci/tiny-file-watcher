@@ -24,9 +24,6 @@ func validateSSHConfig(settings map[string]string) error {
 	if _, ok := settings["ssh.private_keys_path"]; !ok {
 		return fmt.Errorf("required setting 'ssh.private_keys_path' not set")
 	}
-	if _, ok := settings["ssh.known_hosts_path"]; !ok {
-		return fmt.Errorf("required setting 'ssh.known_hosts_path' not set")
-	}
 	return nil
 }
 

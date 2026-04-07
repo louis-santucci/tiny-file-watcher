@@ -23,10 +23,24 @@ type WatcherService struct {
 	transactor            database.Transactor
 	logger                *slog.Logger
 	sshConfig             *config.SSHConfig
+	// syncJobOpts are forwarded to every SyncJob created by this service.
+	// Used in tests to inject a local RemoteFS and bypass SSH.
+	syncJobOpts []SyncJobOption
 }
 
-func NewManagerService(fileWatcherRepository database.FileWatcherRepository, fileRepository database.FileRepository, machineRepository database.MachineRepository, logger *slog.Logger, sshConfig *config.SSHConfig, transactor database.Transactor) *WatcherService {
-	return &WatcherService{
+// WatcherServiceOption is a functional option for WatcherService.
+type WatcherServiceOption func(*WatcherService)
+
+// WithSyncJobOptions forwards the given SyncJobOptions to every SyncJob
+// created by this service.  Intended for use in tests.
+func WithSyncJobOptions(opts ...SyncJobOption) WatcherServiceOption {
+	return func(s *WatcherService) {
+		s.syncJobOpts = append(s.syncJobOpts, opts...)
+	}
+}
+
+func NewManagerService(fileWatcherRepository database.FileWatcherRepository, fileRepository database.FileRepository, machineRepository database.MachineRepository, logger *slog.Logger, sshConfig *config.SSHConfig, transactor database.Transactor, opts ...WatcherServiceOption) *WatcherService {
+	svc := &WatcherService{
 		fileWatcherRepository: fileWatcherRepository,
 		fileRepository:        fileRepository,
 		machineRepository:     machineRepository,
@@ -34,6 +48,10 @@ func NewManagerService(fileWatcherRepository database.FileWatcherRepository, fil
 		sshConfig:             sshConfig,
 		transactor:            transactor,
 	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
 }
 
 func (s *WatcherService) CreateWatcher(_ context.Context, req *pb.CreateWatcherRequest) (*pb.Watcher, error) {
@@ -59,7 +77,7 @@ func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo data
 	if err != nil {
 		logger.Error("fetch machine for watcher", "machine_name", w.MachineName, "error", err)
 	}
-	syncJob := NewSyncJob(logger, w, machine, s.sshConfig, nil, fileRepo, s.fileWatcherRepository, s.transactor)
+	syncJob := NewSyncJob(logger, w, machine, s.sshConfig, nil, fileRepo, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
 	if _, err := syncJob.Run(true); err != nil {
 		logger.Error("add existing files for watcher", "watcher_name", w.Name, "error", err)
 	}
@@ -172,13 +190,8 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 			req.Name, w.MachineName, callerMachine.Name)
 	}
 
-	remoteMachine, err := s.machineRepository.GetMachineByName(w.MachineName)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fetch machine for watcher: %v", err)
-	}
-
 	var publicKey ssh.PublicKey
-	syncJob := NewSyncJob(s.logger, w, remoteMachine, s.sshConfig, publicKey, s.fileRepository, s.fileWatcherRepository, s.transactor)
+	syncJob := NewSyncJob(s.logger, w, callerMachine, s.sshConfig, publicKey, s.fileRepository, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
 
 	result, err := syncJob.Run(false)
 	if err != nil {

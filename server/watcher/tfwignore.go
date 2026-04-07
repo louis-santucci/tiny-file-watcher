@@ -3,16 +3,23 @@ package watcher
 import (
 	"bufio"
 	"errors"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/pkg/sftp"
 	gitignore "github.com/sabhiram/go-gitignore"
 )
 
 const ignoreFileName = ".tfwignore"
+
+// FileOpener is the file-open capability required by LoadIgnore.
+// *sftp.Client satisfies this interface out of the box.
+// In tests a local filesystem adapter can be used instead.
+type FileOpener interface {
+	OpenFile(path string, f int) (io.ReadCloser, error)
+}
 
 // Ignorer decides whether a file should be ignored during a sync.
 // MatchesPath returns true when the file at the given absolute path must be
@@ -25,16 +32,21 @@ type Ignorer interface {
 // LoadIgnore loads the .tfwignore file at the given path and returns an Ignorer
 // that can be used to check whether files should be ignored.  If the file does
 // not exist, a noop Ignorer is returned that accepts all files.
-func LoadIgnore(client *sftp.Client, path string, logger *slog.Logger) (Ignorer, error) {
+func LoadIgnore(client FileOpener, path string, logger *slog.Logger) (Ignorer, error) {
 	ignoreFile, err := client.OpenFile(path, os.O_RDONLY)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			logger.Debug("no .tfwignore found, all files accepted", "path", path)
 			return noopIgnorer{}, nil
 		}
+		return nil, err
 	}
 
-	defer ignoreFile.Close()
+	defer func() {
+		if cerr := ignoreFile.Close(); cerr != nil {
+			logger.Warn("load ignore: failed to close .tfwignore", "err", cerr)
+		}
+	}()
 	lines := []string{}
 	fileScanner := bufio.NewScanner(ignoreFile)
 	for fileScanner.Scan() {

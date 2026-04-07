@@ -91,25 +91,6 @@ tfw flush pending <watcher-name> [-p]   # list pending files; -p shows full path
 tfw flush run <watcher-name>            # copy pending files to target
 ```
 
-### Filters
-
-Filters control which files a watcher picks up. No filters means accept everything. Exclude rules always win over include rules. If any include rules exist, a file must match at least one.
-
-```bash
-tfw filter list [watcher-name]
-tfw filter add <watcher-name> --type <include|exclude> --match <extension|name|glob> --pattern <value>
-tfw filter delete <filter-id>
-```
-
-Examples:
-```bash
-# Only accept .mp3 and .wav files
-tfw filter add my-watcher --type include --match extension --pattern .mp3
-tfw filter add my-watcher --type include --match extension --pattern .wav
-
-# Exclude temp files and macOS metadata
-tfw filter add my-watcher --type exclude --match glob --pattern "*.tmp"
-tfw filter add my-watcher --type exclude --match name --pattern ".DS_Store"
 ```
 
 ## Typical Workflow

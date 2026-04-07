@@ -1,6 +1,7 @@
 package watcher_test
 
 import (
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -13,6 +14,14 @@ import (
 	"tiny-file-watcher/server/watcher"
 )
 
+// localFileOpener implements watcher.FileOpener using the local filesystem.
+// It is used in tests as a drop-in replacement for *sftp.Client.
+type localFileOpener struct{}
+
+func (localFileOpener) OpenFile(path string, _ int) (io.ReadCloser, error) {
+	return os.OpenFile(path, os.O_RDONLY, 0)
+}
+
 func setupIgnoreTest(t *testing.T, content string) (root string, ignorer watcher.Ignorer) {
 	t.Helper()
 	root = t.TempDir()
@@ -20,7 +29,7 @@ func setupIgnoreTest(t *testing.T, content string) (root string, ignorer watcher
 		err := os.WriteFile(filepath.Join(root, ".tfwignore"), []byte(content), 0644)
 		require.NoError(t, err)
 	}
-	ignorer, err := watcher.LoadIgnore(root, slog.Default())
+	ignorer, err := watcher.LoadIgnore(localFileOpener{}, filepath.Join(root, ".tfwignore"), slog.Default())
 	require.NoError(t, err)
 	return
 }
@@ -39,7 +48,7 @@ func touch(t *testing.T, root, rel string) string {
 
 func TestLoadIgnore_NoFile_AcceptsAll(t *testing.T) {
 	root := t.TempDir()
-	ignorer, err := watcher.LoadIgnore(root, slog.Default())
+	ignorer, err := watcher.LoadIgnore(localFileOpener{}, filepath.Join(root, ".tfwignore"), slog.Default())
 	require.NoError(t, err)
 
 	f := touch(t, root, "src/main.go")
@@ -188,4 +197,13 @@ func TestIgnore_PatternWithLeadingSlash_MatchesRootOnly(t *testing.T) {
 
 	assert.True(t, ignorer.MatchesPath(root, touch(t, root, "log")))
 	assert.False(t, ignorer.MatchesPath(root, touch(t, root, "src/log")))
+}
+
+func TestIgnore_PatternWithStarInDir_MatchesRecursively(t *testing.T) {
+	root, ignorer := setupIgnoreTest(t, "**/.DS_Store\n")
+
+	assert.True(t, ignorer.MatchesPath(root, touch(t, root, ".DS_Store")))
+	assert.True(t, ignorer.MatchesPath(root, touch(t, root, "src/.DS_Store")))
+	assert.True(t, ignorer.MatchesPath(root, touch(t, root, "a/b/.DS_Store")))
+	assert.False(t, ignorer.MatchesPath(root, touch(t, root, "readme.md")))
 }

@@ -170,6 +170,8 @@ func (j *SyncJob) handleCurrentPaths(client *sftp.Client, watchedFilesSet *Set[s
 
 	// walk the source path and check if the file exists in the db for this watcher, if not, create it, if yes, do nothing
 	queue := []*fs.Walker{client.Walk(j.watcher.SourcePath)}
+	analyzed := NewSet[string]()
+	analyzed.Add(j.watcher.SourcePath)
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
@@ -178,9 +180,10 @@ func (j *SyncJob) handleCurrentPaths(client *sftp.Client, watchedFilesSet *Set[s
 				j.logger.Error("sync: error walking source path", "error", current.Err(), "watcher", j.watcher.Name, "path", current.Path())
 				continue
 			}
-			if current.Stat().IsDir() {
+			if current.Stat().IsDir() && !analyzed.Contains(current.Path()) {
 				j.logger.Debug("sync: adding subdirectory", "path", current.Path(), "watcher", j.watcher.Name)
 				queue = append(queue, client.Walk(current.Path())) // enqueue subdirectory
+				analyzed.Add(current.Path())
 				continue
 			}
 			if ignorer.MatchesPath(j.watcher.SourcePath, current.Path()) {

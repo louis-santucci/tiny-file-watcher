@@ -473,7 +473,6 @@ func TestStreamSyncWatcher_SyncJobOpts_Forwarded(t *testing.T) {
 		fileRepo,
 		machineRepo,
 		testutil.TestLogger(),
-		defaultSSHConfig,
 		transactor,
 		watcher.WithSyncJobOptions(watcher.WithRemoteFS(watcher.LocalRemoteFS())),
 	)

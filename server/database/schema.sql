@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS machines
     ip                      TEXT        NOT NULL,
     ssh_port                INTEGER     NOT NULL,
     ssh_user                TEXT        NOT NULL,
-    ssh_key_name            TEXT        NOT NULL,
+    ssh_private_key_path    TEXT        NOT NULL DEFAULT '',
     ssh_host_public_key_path TEXT       NOT NULL DEFAULT '',
     created_at              TEXT        NOT NULL,
     updated_at              TEXT        NOT NULL

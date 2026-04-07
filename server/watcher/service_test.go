@@ -8,7 +8,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"tiny-file-watcher/server/config"
 	"tiny-file-watcher/server/test/mocks"
 	"tiny-file-watcher/server/test/testutil"
 
@@ -38,11 +37,9 @@ func newWatcher(id int64, name, path string) *database.FileWatcher {
 	}
 }
 
-var defaultSSHConfig = &config.SSHConfig{PrivateKeysPath: "/tmp/keys"}
-
 func newService(fileWatcherRepository *mocks.MockFileWatcherRepository, fileRepository *mocks.MockFileRepository, machineRepository *mocks.MockMachineRepository) *watcher.WatcherService {
 	transactor := &mocks.MockTransactor{}
-	return watcher.NewManagerService(fileWatcherRepository, fileRepository, machineRepository, testutil.TestLogger(), defaultSSHConfig, transactor)
+	return watcher.NewManagerService(fileWatcherRepository, fileRepository, machineRepository, testutil.TestLogger(), transactor)
 }
 
 // newServiceWithLocalFS creates a WatcherService that walks the local
@@ -60,7 +57,6 @@ func newServiceWithLocalFS(
 		fileRepository,
 		machineRepository,
 		testutil.TestLogger(),
-		defaultSSHConfig,
 		transactor,
 		watcher.WithSyncJobOptions(watcher.WithRemoteFS(watcher.LocalRemoteFS())),
 	)

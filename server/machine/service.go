@@ -81,7 +81,7 @@ func toProto(m *database.Machine) *pb.MachineResponse {
 	return &pb.MachineResponse{
 		Token:                m.Token,
 		SshUser:              m.SSHUser,
-		SshPrivateKey:        m.SSHKeyName,
+		SshPrivateKey:        m.SSHPrivateKeyPath,
 		SshHostPublicKeyPath: m.SSHHostPublicKeyPath,
 		Name:                 m.Name,
 		CreatedAt:            timestamppb.New(m.CreatedAt),

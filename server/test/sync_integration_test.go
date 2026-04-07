@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	pb "tiny-file-watcher/gen/grpc"
-	"tiny-file-watcher/server/config"
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/test/mocks"
 	"tiny-file-watcher/server/test/testutil"
@@ -35,8 +34,6 @@ import (
 
 const integrationToken = "integ-token-1234"
 
-var integrationSSHConfig = &config.SSHConfig{PrivateKeysPath: "/tmp/keys"}
-
 // newSyncService creates a WatcherService backed by a real SQLite DB.
 func newSyncService(t *testing.T) (*watcher.WatcherService, *database.DB) {
 	t.Helper()
@@ -44,7 +41,6 @@ func newSyncService(t *testing.T) (*watcher.WatcherService, *database.DB) {
 	svc := watcher.NewManagerService(
 		db, db, db,
 		testutil.TestLogger(),
-		integrationSSHConfig,
 		db,
 		watcher.WithSyncJobOptions(watcher.WithRemoteFS(watcher.LocalRemoteFS())),
 	)

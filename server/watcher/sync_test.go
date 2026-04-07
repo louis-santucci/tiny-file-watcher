@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
-	"tiny-file-watcher/server/config"
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/test/mocks"
 	"tiny-file-watcher/server/test/testutil"
@@ -23,8 +22,6 @@ import (
 )
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-var testSSHConfig = &config.SSHConfig{PrivateKeysPath: "/tmp/keys"}
 
 func newSyncJob(
 	dir string,
@@ -40,7 +37,6 @@ func newSyncJob(
 		testutil.TestLogger(),
 		w,
 		machine,
-		testSSHConfig,
 		fileRepo,
 		fileWatcherRepo,
 		transactor,

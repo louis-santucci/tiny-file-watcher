@@ -31,7 +31,7 @@ func newMachine(id int64, name, token, ip string, sshPort int32, sshUser, sshPri
 		IP:                   ip,
 		SSHPort:              sshPort,
 		SSHUser:              sshUser,
-		SSHKeyName:           sshPrivateKey,
+		SSHPrivateKeyPath:    sshPrivateKey,
 		SSHHostPublicKeyPath: sshHostPublicKeyPath,
 		CreatedAt:            fixedAt,
 		UpdatedAt:            fixedAt,
@@ -55,8 +55,8 @@ func TestCreateMachine_OK(t *testing.T) {
 	repo := &mocks.MockMachineRepository{}
 	svc := newService(repo)
 
-	m := newMachine(1, "my-machine", "tok-abc", "192.168.1.1", 22, "ssh-user", "ssh-key", "/srv/keys/host.pub")
-	repo.On("CreateMachine", "my-machine", "tok-abc", "192.168.1.1", int32(22), "ssh-user", "ssh-key", "/srv/keys/host.pub").Return(m, nil)
+	m := newMachine(1, "my-machine", "tok-abc", "192.168.1.1", 22, "ssh-user", "/tmp/keys/ssh-key", "/srv/keys/host.pub")
+	repo.On("CreateMachine", "my-machine", "tok-abc", "192.168.1.1", int32(22), "ssh-user", "/tmp/keys/ssh-key", "/srv/keys/host.pub").Return(m, nil)
 
 	resp, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{
 		Name:                 "my-machine",
@@ -64,7 +64,7 @@ func TestCreateMachine_OK(t *testing.T) {
 		Ip:                   "192.168.1.1",
 		SshPort:              22,
 		SshUser:              "ssh-user",
-		SshPrivateKey:        "ssh-key",
+		SshPrivateKey:        "/tmp/keys/ssh-key",
 		SshHostPublicKeyPath: "/srv/keys/host.pub",
 	})
 
@@ -82,9 +82,9 @@ func TestCreateMachine_DefaultSSHPort(t *testing.T) {
 	repo := &mocks.MockMachineRepository{}
 	svc := newService(repo)
 
-	m := newMachine(1, "my-machine", "tok-abc", "10.0.0.1", 22, "ssh-user", "ssh-key", "/srv/keys/host.pub")
+	m := newMachine(1, "my-machine", "tok-abc", "10.0.0.1", 22, "ssh-user", "/tmp/keys/ssh-key", "/srv/keys/host.pub")
 	// Service should default ssh_port=0 to 22.
-	repo.On("CreateMachine", "my-machine", "tok-abc", "10.0.0.1", int32(22), "ssh-user", "ssh-key", "/srv/keys/host.pub").Return(m, nil)
+	repo.On("CreateMachine", "my-machine", "tok-abc", "10.0.0.1", int32(22), "ssh-user", "/tmp/keys/ssh-key", "/srv/keys/host.pub").Return(m, nil)
 
 	resp, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{
 		Name:                 "my-machine",
@@ -92,7 +92,7 @@ func TestCreateMachine_DefaultSSHPort(t *testing.T) {
 		Ip:                   "10.0.0.1",
 		SshPort:              22,
 		SshUser:              "ssh-user",
-		SshPrivateKey:        "ssh-key",
+		SshPrivateKey:        "/tmp/keys/ssh-key",
 		SshHostPublicKeyPath: "/srv/keys/host.pub",
 	})
 
@@ -165,7 +165,7 @@ func TestCreateMachine_DBError(t *testing.T) {
 	repo := &mocks.MockMachineRepository{}
 	svc := newService(repo)
 
-	repo.On("CreateMachine", "my-machine", "tok-abc", "1.2.3.4", int32(22), "ssh-user", "ssh-key", "/srv/keys/host.pub").Return(nil, errors.New("db error"))
+	repo.On("CreateMachine", "my-machine", "tok-abc", "1.2.3.4", int32(22), "ssh-user", "/tmp/keys/ssh-key", "/srv/keys/host.pub").Return(nil, errors.New("db error"))
 
 	_, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{
 		Name:                 "my-machine",
@@ -173,7 +173,7 @@ func TestCreateMachine_DBError(t *testing.T) {
 		Ip:                   "1.2.3.4",
 		SshPort:              22,
 		SshUser:              "ssh-user",
-		SshPrivateKey:        "ssh-key",
+		SshPrivateKey:        "/tmp/keys/ssh-key",
 		SshHostPublicKeyPath: "/srv/keys/host.pub",
 	})
 
@@ -201,8 +201,8 @@ func TestGetMachines_Multiple(t *testing.T) {
 	svc := newService(repo)
 
 	machines := []*database.Machine{
-		newMachine(1, "machine-a", "tok-a", "10.0.0.1", 22, "ssh-user-a", "ssh-key-a", "/srv/keys/host-a.pub"),
-		newMachine(2, "machine-b", "tok-b", "10.0.0.2", 2222, "ssh-user-b", "ssh-key-b", "/srv/keys/host-b.pub"),
+		newMachine(1, "machine-a", "tok-a", "10.0.0.1", 22, "ssh-user-a", "/tmp/keys/ssh-key-a", "/srv/keys/host-a.pub"),
+		newMachine(2, "machine-b", "tok-b", "10.0.0.2", 2222, "ssh-user-b", "/tmp/keys/ssh-key-b", "/srv/keys/host-b.pub"),
 	}
 	repo.On("ListMachines").Return(machines, nil)
 

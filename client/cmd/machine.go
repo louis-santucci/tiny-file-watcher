@@ -32,7 +32,7 @@ func init() {
 	createMachineCmd.Flags().StringVar(&createMachineIP, "ip", "", "IP address of the machine (required)")
 	createMachineCmd.Flags().Int32Var(&createMachineSSHPort, "ssh-port", 22, "SSH port of the machine")
 	createMachineCmd.Flags().StringVar(&createMachineSSHUser, "ssh-user", "", "SSH user for the machine (required)")
-	createMachineCmd.Flags().StringVar(&createMachineSSHKeyPath, "ssh-key", "", "Path to the SSH private key file (required)")
+	createMachineCmd.Flags().StringVar(&createMachineSSHKeyPath, "ssh-key", "", "Full path to the SSH private key file on this machine, e.g. /home/user/.ssh/id_ed25519 (required)")
 	createMachineCmd.Flags().StringVar(&createMachineSSHHostKeyPath, "ssh-host-key", "", "Server-side path to the host public key file in authorized_keys format, e.g. obtained via ssh-keyscan (required)")
 	_ = createMachineCmd.MarkFlagRequired("ip")
 	_ = createMachineCmd.MarkFlagRequired("ssh-user")
@@ -49,8 +49,8 @@ var createMachineCmd = &cobra.Command{
 A unique token is generated and saved locally to ~/.tfw/machine.json.
 Requires authentication (run 'tfw login' first).
 
-The --ssh-key flag must point to a local private key file (e.g. ~/.ssh/id_rsa).
-Its content is sent to the server and stored for future SSH connections.`,
+The --ssh-key flag must be the full path to a private key file on this machine (e.g. /home/user/.ssh/id_ed25519).
+The path is stored on the server and used for future SSH connections to this machine.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		token := uuid.New().String()

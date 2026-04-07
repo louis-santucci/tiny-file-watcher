@@ -11,7 +11,6 @@ import (
 	"slices"
 	"strconv"
 	. "tiny-file-watcher/internal"
-	"tiny-file-watcher/server/config"
 	"tiny-file-watcher/server/database"
 
 	"github.com/kr/fs"
@@ -59,7 +58,6 @@ type SyncJob struct {
 	watcher           *database.FileWatcher
 	machine           *database.Machine
 	logger            *slog.Logger
-	sshConfig         *config.SSHConfig
 	fileRepository    database.FileRepository
 	watcherRepository database.FileWatcherRepository
 	transactor        database.Transactor
@@ -105,12 +103,11 @@ type SyncResult struct {
 	RemovedFiles []string
 }
 
-func NewSyncJob(logger *slog.Logger, watcher *database.FileWatcher, machine *database.Machine, sshConfig *config.SSHConfig, fileRepo database.FileRepository, watcherRepo database.FileWatcherRepository, transactor database.Transactor, opts ...SyncJobOption) *SyncJob {
+func NewSyncJob(logger *slog.Logger, watcher *database.FileWatcher, machine *database.Machine, fileRepo database.FileRepository, watcherRepo database.FileWatcherRepository, transactor database.Transactor, opts ...SyncJobOption) *SyncJob {
 	j := &SyncJob{
 		watcher:           watcher,
 		machine:           machine,
 		logger:            logger,
-		sshConfig:         sshConfig,
 		fileRepository:    fileRepo,
 		watcherRepository: watcherRepo,
 		transactor:        transactor,
@@ -196,7 +193,7 @@ func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 		return j.remoteFS, nil
 	}
 
-	j.logger.Debug("private key path", "path", filepath.Join(j.sshConfig.PrivateKeysPath, j.machine.SSHKeyName))
+	j.logger.Debug("private key path", "path", j.machine.SSHPrivateKeyPath)
 
 	// Load the host's public key and build a FixedHostKey callback.
 	hostKeyBytes, err := os.ReadFile(j.machine.SSHHostPublicKeyPath)
@@ -212,8 +209,7 @@ func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 		User: j.machine.SSHUser,
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
-				keyPath := filepath.Join(j.sshConfig.PrivateKeysPath, j.machine.SSHKeyName)
-				keyBytes, err := os.ReadFile(keyPath)
+				keyBytes, err := os.ReadFile(j.machine.SSHPrivateKeyPath)
 				if err != nil {
 					return nil, err
 				}

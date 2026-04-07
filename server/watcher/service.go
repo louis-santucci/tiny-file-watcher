@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
-	"tiny-file-watcher/server/config"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -24,7 +23,6 @@ type WatcherService struct {
 	machineRepository     database.MachineRepository
 	transactor            database.Transactor
 	logger                *slog.Logger
-	sshConfig             *config.SSHConfig
 	// syncJobOpts are forwarded to every SyncJob created by this service.
 	// Used in tests to inject a local RemoteFS and bypass SSH.
 	syncJobOpts []SyncJobOption
@@ -45,13 +43,12 @@ func WithSyncJobOptions(opts ...SyncJobOption) WatcherServiceOption {
 	}
 }
 
-func NewManagerService(fileWatcherRepository database.FileWatcherRepository, fileRepository database.FileRepository, machineRepository database.MachineRepository, logger *slog.Logger, sshConfig *config.SSHConfig, transactor database.Transactor, opts ...WatcherServiceOption) *WatcherService {
+func NewManagerService(fileWatcherRepository database.FileWatcherRepository, fileRepository database.FileRepository, machineRepository database.MachineRepository, logger *slog.Logger, transactor database.Transactor, opts ...WatcherServiceOption) *WatcherService {
 	svc := &WatcherService{
 		fileWatcherRepository: fileWatcherRepository,
 		fileRepository:        fileRepository,
 		machineRepository:     machineRepository,
 		logger:                logger,
-		sshConfig:             sshConfig,
 		transactor:            transactor,
 	}
 	for _, opt := range opts {
@@ -96,7 +93,7 @@ func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo data
 	if err != nil {
 		logger.Error("fetch machine for watcher", "machine_name", w.MachineName, "error", err)
 	}
-	syncJob := NewSyncJob(logger, w, machine, s.sshConfig, fileRepo, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
+	syncJob := NewSyncJob(logger, w, machine, fileRepo, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
 	if _, err := syncJob.Run(true); err != nil {
 		logger.Error("add existing files for watcher", "watcher_name", w.Name, "error", err)
 	}
@@ -215,7 +212,7 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 	}
 	defer unlock()
 
-	syncJob := NewSyncJob(s.logger, w, callerMachine, s.sshConfig, s.fileRepository, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
+	syncJob := NewSyncJob(s.logger, w, callerMachine, s.fileRepository, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
 
 	result, err := syncJob.Run(false)
 	if err != nil {
@@ -273,7 +270,7 @@ func (s *WatcherService) StreamSyncWatcher(req *pb.SyncWatcherRequest, stream gr
 	}
 
 	syncJob := NewSyncJob(
-		s.logger, w, callerMachine, s.sshConfig,
+		s.logger, w, callerMachine,
 		s.fileRepository, s.fileWatcherRepository, s.transactor,
 		append(s.syncJobOpts, WithLogCallback(func(msg string) {
 			// Best-effort: ignore send errors inside the callback; the Run()

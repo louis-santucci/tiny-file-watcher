@@ -59,15 +59,7 @@ func NewApp() (*App, error) {
 	logger := slog.Default()
 	log.Printf("log_level=%s", logLevel)
 
-	// ── SSH configuration validation ──────────────────────────────────────────
-	privateKeysPath, _ := cfg.String("ssh.private_keys_path")
-	sshConfig := config2.SSHConfig{
-		PrivateKeysPath: privateKeysPath,
-	}
-	if err := config2.ValidateSSHConfig(sshConfig, logger); err != nil {
-		return nil, fmt.Errorf("ssh config: %w", err)
-	}
-
+	// ── gRPC address ──────────────────────────────────────────────────────────
 	grpcAddr, _ := cfg.String("grpc.address")
 	slog.Debug("gRPC address: " + grpcAddr)
 
@@ -99,7 +91,7 @@ func NewApp() (*App, error) {
 		grpc.ChainStreamInterceptor(streamAuthInterceptor),
 	)
 	reflection.Register(grpcServer)
-	watcherSvc := watcher.NewManagerService(db, db, db, logger, &sshConfig, db)
+	watcherSvc := watcher.NewManagerService(db, db, db, logger, db)
 	redirectionSvc := redirection.NewRedirectionService(db, db, db, logger)
 	flushSvc := flush.NewFlushService(db, logger)
 	machineSvc := machine.NewMachineService(db, logger)

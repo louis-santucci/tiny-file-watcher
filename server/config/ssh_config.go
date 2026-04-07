@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -38,7 +39,7 @@ func checkKeyPermissions(dirPath string, logger *slog.Logger) error {
 		if d.IsDir() {
 			return nil
 		}
-		if !strings.HasSuffix(filepath.Base(path), "key") {
+		if !strings.HasSuffix(filepath.Base(path), "key") || !strings.HasSuffix(filepath.Base(path), ".pub") {
 			return nil
 		}
 

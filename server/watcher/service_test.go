@@ -38,7 +38,7 @@ func newWatcher(id int64, name, path string) *database.FileWatcher {
 	}
 }
 
-var defaultSSHConfig = &config.SSHConfig{PrivateKeysPath: "/tmp/keys", KnownHostsPath: "/tmp/known_hosts"}
+var defaultSSHConfig = &config.SSHConfig{PrivateKeysPath: "/tmp/keys"}
 
 func newService(fileWatcherRepository *mocks.MockFileWatcherRepository, fileRepository *mocks.MockFileRepository, machineRepository *mocks.MockMachineRepository) *watcher.WatcherService {
 	transactor := &mocks.MockTransactor{}

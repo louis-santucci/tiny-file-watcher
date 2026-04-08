@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"google.golang.org/grpc/codes"
@@ -46,6 +47,7 @@ func (s *MachineService) CreateMachine(_ context.Context, req *pb.InitializeMach
 	if sshPort == 0 {
 		sshPort = 22
 	}
+	fmt.Printf("Creating machine %q with IP %q, SSH port %d, SSH user %s, SSH private key path %s, SSH public key path %s", req.Name, req.Ip, sshPort, req.SshUser, req.SshPrivateKey, req.SshHostPublicKeyPath)
 	m, err := s.repo.CreateMachine(req.Name, req.Token, req.Ip, sshPort, req.SshUser, req.SshPrivateKey, req.SshHostPublicKeyPath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create machine: %v", err)

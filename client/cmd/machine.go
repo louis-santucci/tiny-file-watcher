@@ -59,6 +59,8 @@ The path is stored on the server and used for future SSH connections to this mac
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
+		fmt.Printf("Creating machine %q with IP %q, SSH port %d, SSH user %q...\n", args[0], createMachineIP, createMachineSSHPort, createMachineSSHUser)
+		fmt.Printf("Using SSH key %q and host public key %q\n", createMachineSSHKeyPath, createMachineSSHHostKeyPath)
 		resp, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{
 			Name:                 args[0],
 			Token:                token,

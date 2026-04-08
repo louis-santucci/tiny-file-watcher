@@ -35,7 +35,7 @@ FROM dhi.io/debian-base:trixie-debian13
 
 WORKDIR /app
 
-COPY --from=builder /tfws ./tfws
+COPY --from=builder /src/tfws ./tfws
 
 ENV TFWS_CONFIG_PATH=./.tfw
 

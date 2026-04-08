@@ -22,7 +22,11 @@ COPY internal/ ./internal/
 COPY server/ ./server/
 
 RUN mkdir ./grpc/gen && \
-    protoc --go_out=./grpc/gen --go-grpc_out=./grpc/gen ./grpc/*.proto
+	protoc \
+		--proto_path=grpc/ \
+		--go_out=grpc/gen --go_opt=paths=source_relative \
+		--go-grpc_out=grpc/gen --go-grpc_opt=paths=source_relative \
+		grpc/filewatcher.proto
 
 RUN go build -o tfws ./server ./grpc
 

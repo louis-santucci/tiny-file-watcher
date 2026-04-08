@@ -1,5 +1,5 @@
 # Builder stage
-FROM dhi.io/golang/1.26.1-debian13-dev AS builder
+FROM dhi.io/golang:1.26.1-debian13-dev AS builder
 
 ENV CGO_ENABLED=0
 ENV GOOS=linux
@@ -16,7 +16,7 @@ COPY server/ ./server/
 RUN go build -o tfws ./server
 
 # Runtime stage
-FROM dhi.io/debian-base/trixie-debian13
+FROM dhi.io/debian-base:trixie-debian13
 
 WORKDIR /app
 

@@ -6,12 +6,19 @@ ENV GOOS=linux
 
 WORKDIR /src
 
+RUN go install "google.golang.org/protobuf/cmd/protoc-gen-go@latest" && \\
+    go install "google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest" && \\
+    go install "github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
+
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY internal/ ./internal/
 COPY grpc/ ./grpc/
+COPY internal/ ./internal/
 COPY server/ ./server/
+
+RUN mkdir grpc/gen && \\
+    protoc --go_out=grpc/gen --go-grpc_out=grpc/gen grpc/*.proto
 
 RUN go build -o tfws ./server
 

@@ -41,6 +41,4 @@ COPY --from=builder /src/tfws ./tfws
 
 ENV TFWS_CONFIG_PATH=./.tfw
 
-RUN mkdir -p $TFWS_CONFIG_PATH
-
 ENTRYPOINT ["./tfws"]

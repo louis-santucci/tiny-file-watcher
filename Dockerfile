@@ -33,6 +33,9 @@ RUN go build -o tfws ./server
 # Runtime stage
 FROM alpine:3.23.3
 
+# add a non-root user to run the application
+RUN adduser -D -u 1000 tfw
+
 USER tfw
 
 WORKDIR /app
@@ -41,6 +44,6 @@ RUN mkdir -p /app/.tfw
 
 COPY --from=builder /src/tfws ./tfws
 
-ENV TFWS_CONFIG_PATH=./.tfw
+ENV TFWS_CONFIG_PATH=/app/.tfw
 
 ENTRYPOINT ["./tfws"]

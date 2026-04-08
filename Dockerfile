@@ -33,11 +33,9 @@ RUN go build -o tfws ./server
 # Runtime stage
 FROM dhi.io/debian-base:trixie-debian13
 
-USER tfws
-
-RUN mkdir /app
-
 WORKDIR /app
+
+RUN mkdir -p /app/.tfw
 
 COPY --from=builder /src/tfws ./tfws
 

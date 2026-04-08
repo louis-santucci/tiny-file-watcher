@@ -21,10 +21,10 @@ COPY grpc/ ./grpc/
 COPY internal/ ./internal/
 COPY server/ ./server/
 
-RUN mkdir grpc/gen && \
+RUN mkdir ./grpc/gen && \
     protoc --go_out=./grpc/gen --go-grpc_out=./grpc/gen ./grpc/*.proto
 
-RUN go build -o tfws ./server
+RUN go build -o tfws ./server ./grpc
 
 # Runtime stage
 FROM dhi.io/debian-base:trixie-debian13

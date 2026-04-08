@@ -31,7 +31,9 @@ RUN mkdir -p ./gen/grpc && \
 RUN go build -o tfws ./server
 
 # Runtime stage
-FROM dhi.io/debian-base:trixie-debian13
+FROM alpine:3.23.3
+
+USER tfw
 
 WORKDIR /app
 

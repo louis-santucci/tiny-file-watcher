@@ -33,12 +33,16 @@ RUN go build -o tfws ./server
 # Runtime stage
 FROM dhi.io/debian-base:trixie-debian13
 
+USER tfws
+
+RUN mkdir /app
+
 WORKDIR /app
 
 COPY --from=builder /src/tfws ./tfws
 
 ENV TFWS_CONFIG_PATH=./.tfw
 
-VOLUME ./.tfw
+RUN mkdir -p $TFWS_CONFIG_PATH
 
 ENTRYPOINT ["./tfws"]

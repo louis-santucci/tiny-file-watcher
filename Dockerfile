@@ -28,7 +28,7 @@ RUN mkdir ./grpc/gen && \
 		--go-grpc_out=grpc/gen --go-grpc_opt=paths=source_relative \
 		grpc/filewatcher.proto
 
-RUN go build -o tfws ./server ./grpc
+RUN go build -o tfws ./server
 
 # Runtime stage
 FROM dhi.io/debian-base:trixie-debian13

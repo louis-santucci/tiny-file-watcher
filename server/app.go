@@ -71,6 +71,7 @@ func NewApp() (*App, error) {
 	}
 
 	oidcCfg := oidcCfgFromConfig(cfg)
+	basePath, _ := cfg.StringOr("web.base-path", "")
 
 	var tokenVerifier interceptor.TokenVerifier
 	if oidcCfg.Enabled {
@@ -100,7 +101,7 @@ func NewApp() (*App, error) {
 	pb.RegisterFileFlushServiceServer(grpcServer, flushSvc)
 	pb.RegisterMachineServiceServer(grpcServer, machineSvc)
 
-	webHandler, err := web.New(watcherSvc, flushSvc, redirectionSvc, machineSvc, oidcCfg)
+	webHandler, err := web.New(watcherSvc, flushSvc, redirectionSvc, machineSvc, oidcCfg, basePath)
 	if err != nil {
 		return nil, fmt.Errorf("create web handler: %w", err)
 	}

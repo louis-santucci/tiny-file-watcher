@@ -18,11 +18,11 @@
     <nav>
       <ul><li><strong>🗂 tiny-file-watcher</strong></li></ul>
       <ul>
-        <li><a href="/">Dashboard</a></li>
-        <li><a href="/watchers">Watchers</a></li>
-        <li><a href="/machines">Machines</a></li>
+        <li><a href="{{base}}/">Dashboard</a></li>
+        <li><a href="{{base}}/watchers">Watchers</a></li>
+        <li><a href="{{base}}/machines">Machines</a></li>
         <li>
-          <form method="POST" action="/auth/logout" style="margin:0">
+          <form method="POST" action="{{base}}/auth/logout" style="margin:0">
             <button type="submit" class="outline small">Sign out</button>
           </form>
         </li>

@@ -47,6 +47,7 @@ type Handler struct {
 	machineSvc  machineService
 	auth        *authProvider // nil when OIDC is disabled
 	sessions    *sessionStore // nil when OIDC is disabled
+	basePath    string        // optional URL prefix, e.g. "/ui" (no trailing slash)
 }
 
 // pages lists the per-page templates that each embed "base.html".
@@ -55,14 +56,22 @@ var pages = []string{"index.html", "watchers.html", "watcher.html", "machines.ht
 // New wires up the HTTP handler with the given service implementations.
 // When oidcCfg.Enabled is true the OIDC provider is initialised and all
 // application routes are protected by the requireAuth middleware.
+// basePath is an optional URL prefix (e.g. "/ui") used when the app is served
+// behind a reverse-proxy sub-path. Leave empty for no prefix.
 func New(
 	watcherSvc watcherService,
 	flushSvc flushService,
 	redirectSvc redirectionService,
 	machineSvc machineService,
 	oidcCfg OIDCConfig,
+	basePath string,
 ) (*Handler, error) {
-	funcs := template.FuncMap{"join": strings.Join}
+	basePath = strings.TrimRight(basePath, "/")
+
+	funcs := template.FuncMap{
+		"join": strings.Join,
+		"base": func() string { return basePath },
+	}
 
 	tmpls := make(map[string]*template.Template, len(pages))
 	for _, page := range pages {
@@ -80,6 +89,7 @@ func New(
 		flushSvc:    flushSvc,
 		redirectSvc: redirectSvc,
 		machineSvc:  machineSvc,
+		basePath:    basePath,
 	}
 
 	if oidcCfg.Enabled {

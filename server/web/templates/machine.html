@@ -18,7 +18,7 @@
 </table>
 
 <div style="margin-bottom:2rem;">
-  <button hx-post="/machines/{{.Machine.Name}}/delete"
+  <button hx-post="{{base}}/machines/{{.Machine.Name}}/delete"
           hx-confirm="Delete machine {{.Machine.Name}} and all its watchers?"
           class="secondary small">Delete machine</button>
 </div>
@@ -39,7 +39,7 @@
     <tbody>
       {{range .Watchers}}
       <tr>
-        <td><a href="/watchers/{{.Name}}">{{.Name}}</a></td>
+        <td><a href="{{base}}/watchers/{{.Name}}">{{.Name}}</a></td>
         <td>{{.SourcePath}}</td>
         <td>
           <div id="sync-result-{{.Name}}">
@@ -58,5 +58,5 @@
 <p><em>No watchers linked to this machine.</em></p>
 {{end}}
 
-<p><a href="/machines">← Back to machines</a></p>
+<p><a href="{{base}}/machines">← Back to machines</a></p>
 {{end}}

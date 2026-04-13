@@ -134,6 +134,9 @@ func (a *App) Run() error {
 	if webEnabled {
 		webAddr, _ := a.config.String("web.address")
 		log.Printf("web UI available at http://localhost%s", webAddr)
+		if basePath, _ := a.config.StringOr("web.base-path", ""); basePath != "" {
+			log.Printf("web UI base path: %s", basePath)
+		}
 		go func() {
 			if err := http.ListenAndServe(webAddr, a.webHandler); err != nil {
 				log.Fatalf("web UI: serve: %v", err)

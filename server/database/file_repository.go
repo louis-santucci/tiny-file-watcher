@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"tiny-file-watcher/internal"
 )
 
 // FileRepository defines the persistence operations for WatchedFile entities.
@@ -13,7 +14,7 @@ type FileRepository interface {
 }
 
 type TransactionalFileRepository interface {
-	BulkAddWatchedFiles(watcherName string, files map[string]string, flushed bool) ([]*WatchedFile, error)
+	BulkAddWatchedFiles(watcherName string, files *internal.Set[string], flushed bool) ([]*WatchedFile, error)
 	BulkRemoveWatchedFiles(watcherName string, filePaths []string) error
 }
 

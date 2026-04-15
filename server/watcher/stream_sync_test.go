@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"tiny-file-watcher/internal"
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/test/mocks"
 	"tiny-file-watcher/server/test/testutil"
@@ -372,8 +373,8 @@ func TestStreamSyncWatcher_FilterApplied_IgnoredFilesExcludedFromResult(t *testi
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
 	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files map[string]string) bool {
-		return len(files) == 1
+	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+		return files.Size() == 1
 	}), false).Return([]*database.WatchedFile{}, nil)
 
 	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: testToken}, stream)

@@ -223,7 +223,7 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 	return &pb.SyncWatcherResponse{
 		AddedCount:   int64(result.AddedCount),
 		RemovedCount: int64(result.RemovedCount),
-		AddedFiles:   result.AddedFiles,
+		AddedFiles:   result.AddedFiles.Items(),
 		RemovedFiles: result.RemovedFiles,
 	}, nil
 }
@@ -297,7 +297,7 @@ func (s *WatcherService) StreamSyncWatcher(req *pb.SyncWatcherRequest, stream gr
 		Result: &pb.SyncWatcherResponse{
 			AddedCount:   int64(result.AddedCount),
 			RemovedCount: int64(result.RemovedCount),
-			AddedFiles:   result.AddedFiles,
+			AddedFiles:   result.AddedFiles.Items(),
 			RemovedFiles: result.RemovedFiles,
 		},
 	}); err != nil {

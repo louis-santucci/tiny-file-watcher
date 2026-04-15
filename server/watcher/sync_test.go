@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+	"tiny-file-watcher/internal"
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/test/mocks"
 	"tiny-file-watcher/server/test/testutil"
@@ -71,8 +72,8 @@ func TestSyncJob_NewFiles_AreAdded(t *testing.T) {
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 
 	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files map[string]string) bool {
-		return len(files) == 2
+	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+		return files.Size() == 2
 	}), false).Return([]*database.WatchedFile{}, nil)
 
 	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
@@ -81,7 +82,7 @@ func TestSyncJob_NewFiles_AreAdded(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int32(2), result.AddedCount)
 	assert.Equal(t, int32(0), result.RemovedCount)
-	assert.ElementsMatch(t, []string{f1, f2}, result.AddedFiles)
+	assert.ElementsMatch(t, []string{f1, f2}, result.AddedFiles.Items())
 	txRepo.AssertExpectations(t)
 }
 
@@ -194,11 +195,11 @@ func TestSyncJob_AddAndRemove_Simultaneously(t *testing.T) {
 	}, nil)
 
 	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files map[string]string) bool {
-		if len(files) != 1 {
+	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+		if files.Size() != 1 {
 			return false
 		}
-		for _, v := range files {
+		for _, v := range files.Items() {
 			if v == newFile {
 				return true
 			}
@@ -215,7 +216,7 @@ func TestSyncJob_AddAndRemove_Simultaneously(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), result.AddedCount)
 	assert.Equal(t, int32(1), result.RemovedCount)
-	assert.Equal(t, []string{newFile}, result.AddedFiles)
+	assert.Equal(t, []string{newFile}, result.AddedFiles.Items())
 	assert.Equal(t, []string{gone}, result.RemovedFiles)
 	txRepo.AssertExpectations(t)
 }
@@ -255,8 +256,8 @@ func TestSyncJob_SubdirectoryFiles_AreDiscovered(t *testing.T) {
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 
 	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files map[string]string) bool {
-		for _, v := range files {
+	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+		for _, v := range files.Items() {
 			if v == deep {
 				return true
 			}
@@ -269,7 +270,7 @@ func TestSyncJob_SubdirectoryFiles_AreDiscovered(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), result.AddedCount)
-	assert.Contains(t, result.AddedFiles, deep)
+	assert.Contains(t, result.AddedFiles.Items(), deep)
 	txRepo.AssertExpectations(t)
 }
 
@@ -291,8 +292,8 @@ func TestSyncJob_NestedSubdirectories_AllFilesDiscovered(t *testing.T) {
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 
 	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files map[string]string) bool {
-		return len(files) == 3
+	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+		return files.Size() == 3
 	}), false).Return([]*database.WatchedFile{}, nil)
 
 	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
@@ -300,7 +301,7 @@ func TestSyncJob_NestedSubdirectories_AllFilesDiscovered(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(3), result.AddedCount)
-	assert.ElementsMatch(t, []string{f1, f2, f3}, sortedStrings(result.AddedFiles))
+	assert.ElementsMatch(t, []string{f1, f2, f3}, sortedStrings(result.AddedFiles.Items()))
 	txRepo.AssertExpectations(t)
 }
 
@@ -320,11 +321,11 @@ func TestSyncJob_IgnoredFiles_NotAdded(t *testing.T) {
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 
 	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files map[string]string) bool {
-		if len(files) != 1 {
+	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+		if files.Size() != 1 {
 			return false
 		}
-		for _, v := range files {
+		for _, v := range files.Items() {
 			if v == accepted {
 				return true
 			}
@@ -337,7 +338,7 @@ func TestSyncJob_IgnoredFiles_NotAdded(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), result.AddedCount)
-	assert.NotContains(t, result.AddedFiles, ignored)
+	assert.NotContains(t, result.AddedFiles.Items(), ignored)
 	txRepo.AssertExpectations(t)
 }
 
@@ -353,9 +354,9 @@ func TestSyncJob_TfwignoreFileItself_NotTracked(t *testing.T) {
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 
 	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files map[string]string) bool {
-		for name := range files {
-			if name == ".tfwignore" {
+	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+		for _, name := range files.Items() {
+			if filepath.Base(name) == ".tfwignore" {
 				return false
 			}
 		}
@@ -367,7 +368,7 @@ func TestSyncJob_TfwignoreFileItself_NotTracked(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), result.AddedCount)
-	for _, f := range result.AddedFiles {
+	for _, f := range result.AddedFiles.Items() {
 		assert.NotEqual(t, ".tfwignore", filepath.Base(f))
 	}
 	txRepo.AssertExpectations(t)
@@ -522,8 +523,8 @@ func TestSyncJob_Result_AddedFilesContainFullPaths(t *testing.T) {
 	result, err := job.Run(false)
 
 	assert.NoError(t, err)
-	assert.Len(t, result.AddedFiles, 1)
-	assert.Equal(t, f, result.AddedFiles[0])
+	assert.Len(t, result.AddedFiles.Items(), 1)
+	assert.Equal(t, f, result.AddedFiles.Items()[0])
 }
 
 func TestSyncJob_Result_RemovedFilesContainFullPaths(t *testing.T) {

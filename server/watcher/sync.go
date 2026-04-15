@@ -4,10 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"maps"
 	"os"
-	"path/filepath"
-	"slices"
 	"strconv"
 	. "tiny-file-watcher/internal"
 	"tiny-file-watcher/server/database"
@@ -98,7 +95,7 @@ func (j *SyncJob) log(msg string) {
 type SyncResult struct {
 	AddedCount   int32
 	RemovedCount int32
-	AddedFiles   []string
+	AddedFiles   *Set[string]
 	RemovedFiles []string
 }
 
@@ -165,16 +162,16 @@ func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
 	// bulk insert new files
 	// bulk remove deleted files
 	j.log("saving updates to database")
-	err = j.saveUpdates(*addedFiles, removedFiles, flush)
+	err = j.saveUpdates(addedFiles, removedFiles, flush)
 	if err != nil {
 		j.logger.Error("sync: error saving updates to database", "error", err, "watcher", j.watcher.Name)
 		return nil, err
 	}
 
 	results := &SyncResult{
-		AddedCount:   int32(len(*addedFiles)),
+		AddedCount:   int32(addedFiles.Size()),
 		RemovedCount: int32(len(removedFiles)),
-		AddedFiles:   slices.Collect(maps.Values(*addedFiles)),
+		AddedFiles:   addedFiles,
 		RemovedFiles: removedFiles,
 	}
 
@@ -228,9 +225,9 @@ func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 	return sftpRemoteFS{c: sftpClient}, nil
 }
 
-func (j *SyncJob) saveUpdates(addedFiles map[string]string, removedFiles []string, flush bool) error {
+func (j *SyncJob) saveUpdates(addedFiles *Set[string], removedFiles []string, flush bool) error {
 	err := j.transactor.WithTransaction(context.Background(), func(repo database.TransactionalFileRepository) error {
-		if len(addedFiles) > 0 {
+		if addedFiles.Size() > 0 {
 			_, err := repo.BulkAddWatchedFiles(j.watcher.Name, addedFiles, flush)
 			if err != nil {
 				return err
@@ -251,9 +248,9 @@ func (j *SyncJob) saveUpdates(addedFiles map[string]string, removedFiles []strin
 	return nil
 }
 
-func (j *SyncJob) handleCurrentPaths(rfs RemoteFS, watchedFilesSet *Set[string], ignorer Ignorer) (*Set[string], *map[string]string, error) {
+func (j *SyncJob) handleCurrentPaths(rfs RemoteFS, watchedFilesSet *Set[string], ignorer Ignorer) (*Set[string], *Set[string], error) {
 	onDisk := NewSet[string]()
-	addedFiles := make(map[string]string)
+	addedFiles := NewSet[string]()
 
 	// walk the source path and check if the file exists in the db for this watcher, if not, create it, if yes, do nothing
 	queue := []*fs.Walker{rfs.Walk(j.watcher.SourcePath)}
@@ -266,13 +263,13 @@ func (j *SyncJob) handleCurrentPaths(rfs RemoteFS, watchedFilesSet *Set[string],
 		queue = append(queue, newWalkers...)
 	}
 
-	return onDisk, &addedFiles, nil
+	return onDisk, addedFiles, nil
 }
 
 // drainWalker steps through a single Walker, delegating each entry to either
 // enqueueSubdir (directories) or processFile (regular files).
 // It returns any new sub-walkers that should be added to the outer queue.
-func (j *SyncJob) drainWalker(walker *fs.Walker, rfs RemoteFS, analyzed *Set[string], watchedFilesSet *Set[string], ignorer Ignorer, onDisk *Set[string], addedFiles map[string]string) []*fs.Walker {
+func (j *SyncJob) drainWalker(walker *fs.Walker, rfs RemoteFS, analyzed *Set[string], watchedFilesSet *Set[string], ignorer Ignorer, onDisk *Set[string], addedFiles *Set[string]) []*fs.Walker {
 	var newWalkers []*fs.Walker
 	for walker.Step() {
 		if walker.Err() != nil {
@@ -303,7 +300,7 @@ func (j *SyncJob) enqueueSubdir(path string, rfs RemoteFS, analyzed *Set[string]
 
 // processFile records a single file entry: skips ignored files, adds non-tracked
 // files to addedFiles, and always registers present files in onDisk.
-func (j *SyncJob) processFile(path, name string, watchedFilesSet *Set[string], ignorer Ignorer, onDisk *Set[string], addedFiles map[string]string) {
+func (j *SyncJob) processFile(path, name string, watchedFilesSet *Set[string], ignorer Ignorer, onDisk *Set[string], addedFiles *Set[string]) {
 	if ignorer.MatchesPath(j.watcher.SourcePath, path) || name == ignoreFileName {
 		j.logger.Debug("sync: skipping ignored file (.tfwignore rule)", "path", path, "watcher", j.watcher.Name)
 		return
@@ -313,5 +310,5 @@ func (j *SyncJob) processFile(path, name string, watchedFilesSet *Set[string], i
 		return
 	}
 	j.logger.Debug("sync: adding new watched file", "path", path)
-	addedFiles[filepath.Base(path)] = path
+	addedFiles.Add(path)
 }

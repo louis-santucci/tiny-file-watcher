@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"tiny-file-watcher/internal"
 )
 
 // WatchedFile mirrors the watched_files table row.
@@ -69,8 +70,8 @@ func (db *DB) AddWatchedFile(watcherName string, filePath string, flushed bool) 
 
 // BulkAddWatchedFiles inserts multiple watched files in a single INSERT statement.
 // files is a map of file name to full file path. Returns early with a warning if the map is empty.
-func (db *DB) BulkAddWatchedFiles(watcherName string, files map[string]string, flushed bool) ([]*WatchedFile, error) {
-	if len(files) == 0 {
+func (db *DB) BulkAddWatchedFiles(watcherName string, files *internal.Set[string], flushed bool) ([]*WatchedFile, error) {
+	if files.Size() == 0 {
 		slog.Warn("no files to bulk insert")
 		return nil, nil
 	}
@@ -78,18 +79,21 @@ func (db *DB) BulkAddWatchedFiles(watcherName string, files map[string]string, f
 	now := time.Now().UTC()
 	nowStr := now.Format(time.RFC3339)
 
-	placeholders := make([]string, 0, len(files))
-	args := make([]interface{}, 0, len(files)*5)
+	placeholders := make([]string, 0, files.Size())
+	args := make([]interface{}, 0, files.Size()*5)
 
 	// Collect entries to rebuild results after insert (map iteration order is fine; callers use ElementsMatch).
 	type entry struct {
 		name      string
 		parentDir string
 	}
-	entries := make([]entry, 0, len(files))
+	entries := make([]entry, 0, files.Size())
 
-	for name, path := range files {
+	fileItems := files.Items()
+
+	for _, path := range fileItems {
 		parentDir := filepath.Dir(path)
+		name := filepath.Base(path)
 		placeholders = append(placeholders, "(?,?,?,?,?)")
 		args = append(args, watcherName, parentDir, name, flushed, nowStr)
 		entries = append(entries, entry{name: name, parentDir: parentDir})

@@ -206,7 +206,12 @@ func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 	}
 
 	marshalledKey := authorizedKey.Marshal()
+	j.logger.Debug("host public key", "type", authorizedKey.Type(), "size", len(marshalledKey), "path", j.machine.SSHHostPublicKeyPath)
 	hostPubKey, err := ssh.ParsePublicKey(marshalledKey)
+	if err != nil {
+		return nil, fmt.Errorf("parse marshalled host public key %q: %w", j.machine.SSHHostPublicKeyPath, err)
+	}
+	j.logger.Debug("parsed host public key", "type", hostPubKey.Type(), "size", len(hostPubKey.Marshal()))
 
 	sshConfig := ssh.ClientConfig{
 		User: j.machine.SSHUser,

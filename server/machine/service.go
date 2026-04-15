@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"google.golang.org/grpc/codes"
@@ -39,14 +40,12 @@ func (s *MachineService) CreateMachine(_ context.Context, req *pb.InitializeMach
 	if req.SshPrivateKey == "" {
 		return nil, status.Error(codes.InvalidArgument, "ssh_key is required")
 	}
-	if req.SshHostPublicKeyPath == "" {
-		return nil, status.Error(codes.InvalidArgument, "ssh_host_public_key_path is required")
-	}
 	sshPort := req.SshPort
 	if sshPort == 0 {
 		sshPort = 22
 	}
-	m, err := s.repo.CreateMachine(req.Name, req.Token, req.Ip, sshPort, req.SshUser, req.SshPrivateKey, req.SshHostPublicKeyPath)
+	fmt.Printf("Creating machine %q with IP %q, SSH port %d, SSH user %s, SSH private key path %s", req.Name, req.Ip, sshPort, req.SshUser, req.SshPrivateKey)
+	m, err := s.repo.CreateMachine(req.Name, req.Token, req.Ip, sshPort, req.SshUser, req.SshPrivateKey)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create machine: %v", err)
 	}
@@ -79,15 +78,14 @@ func (s *MachineService) DeleteMachine(_ context.Context, req *pb.DeleteMachineR
 
 func toProto(m *database.Machine) *pb.MachineResponse {
 	return &pb.MachineResponse{
-		Token:                m.Token,
-		SshUser:              m.SSHUser,
-		SshPrivateKey:        m.SSHPrivateKeyPath,
-		SshHostPublicKeyPath: m.SSHHostPublicKeyPath,
-		Name:                 m.Name,
-		CreatedAt:            timestamppb.New(m.CreatedAt),
-		UpdatedAt:            timestamppb.New(m.UpdatedAt),
-		Ip:                   m.IP,
-		SshPort:              m.SSHPort,
+		Token:         m.Token,
+		SshUser:       m.SSHUser,
+		SshPrivateKey: m.SSHPrivateKeyPath,
+		Name:          m.Name,
+		CreatedAt:     timestamppb.New(m.CreatedAt),
+		UpdatedAt:     timestamppb.New(m.UpdatedAt),
+		Ip:            m.IP,
+		SshPort:       m.SSHPort,
 	}
 }
 

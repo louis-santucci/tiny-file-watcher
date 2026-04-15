@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"crypto/tls"
 	"fmt"
 	"os"
 	"tiny-file-watcher/client/auth"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -49,11 +51,20 @@ func dial() error {
 		return fmt.Errorf("load client config: %w", err)
 	}
 
-	var opts []grpc.DialOption
+	// Use TLS transport when grpc.tls=true (e.g. client connects to a TLS-terminating
+	// nginx proxy). The backend (tfws) always speaks plain h2c; only the client→proxy
+	// leg is encrypted. Fall back to insecure h2c for direct / local connections.
+	tlsEnabled, _ := cfg.Bool("grpc.tls")
+	var transportCreds grpc.DialOption
+	if tlsEnabled {
+		transportCreds = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{}))
+	} else {
+		transportCreds = grpc.WithTransportCredentials(insecure.NewCredentials())
+	}
+	opts := []grpc.DialOption{transportCreds}
 
 	oidcEnabled, _ := cfg.Bool("oidc.enabled")
 	if oidcEnabled {
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 		oidcIssuer, _ := cfg.String("oidc.issuer")
 		oidcClientID, _ := cfg.String("oidc.device-client-id")

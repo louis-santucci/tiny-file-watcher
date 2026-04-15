@@ -11,14 +11,14 @@
     <tr><th>IP</th><td>{{.Machine.Ip}}</td></tr>
     <tr><th>SSH Port</th><td>{{.Machine.SshPort}}</td></tr>
     <tr><th>SSH User</th><td>{{.Machine.SshUser}}</td></tr>
-    <tr><th>SSH Key</th><td>{{.Machine.SshPrivateKey}}</td></tr>
+    <tr><th>SSH Private Key</th><td><code>{{.Machine.SshPrivateKey}}</code></td></tr>
     <tr><th>Created At</th><td>{{if .Machine.CreatedAt}}{{.Machine.CreatedAt.AsTime.Format "2006-01-02 15:04:05"}}{{else}}-{{end}}</td></tr>
     <tr><th>Updated At</th><td>{{if .Machine.UpdatedAt}}{{.Machine.UpdatedAt.AsTime.Format "2006-01-02 15:04:05"}}{{else}}-{{end}}</td></tr>
   </tbody>
 </table>
 
 <div style="margin-bottom:2rem;">
-  <button hx-post="/machines/{{.Machine.Name}}/delete"
+  <button hx-post="{{base}}/machines/{{.Machine.Name}}/delete"
           hx-confirm="Delete machine {{.Machine.Name}} and all its watchers?"
           class="secondary small">Delete machine</button>
 </div>
@@ -39,7 +39,7 @@
     <tbody>
       {{range .Watchers}}
       <tr>
-        <td><a href="/watchers/{{.Name}}">{{.Name}}</a></td>
+        <td><a href="{{base}}/watchers/{{.Name}}">{{.Name}}</a></td>
         <td>{{.SourcePath}}</td>
         <td>
           <div id="sync-result-{{.Name}}">
@@ -58,5 +58,5 @@
 <p><em>No watchers linked to this machine.</em></p>
 {{end}}
 
-<p><a href="/machines">← Back to machines</a></p>
+<p><a href="{{base}}/machines">← Back to machines</a></p>
 {{end}}

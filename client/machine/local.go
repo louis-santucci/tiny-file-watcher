@@ -58,6 +58,19 @@ func LoadMachineToken() (string, error) {
 	return state.Token, nil
 }
 
+// ClearMachineState removes the locally stored machine state (~/.tfw/machine.json).
+// Returns nil if the file does not exist.
+func ClearMachineState() error {
+	path := machinePath()
+	if err := os.Remove(path); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("remove machine state: %w", err)
+	}
+	return nil
+}
+
 func loadState() (*machineState, error) {
 	data, err := os.ReadFile(machinePath())
 	if err != nil {

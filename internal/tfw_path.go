@@ -16,6 +16,9 @@ const (
 )
 
 func Dir() (string, error) {
+	if envDir := os.Getenv("TFWS_CONFIG_PATH"); envDir != "" {
+		return envDir, nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("could not determine home directory: %w", err)

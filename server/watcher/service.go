@@ -93,6 +93,7 @@ func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo data
 	if err != nil {
 		logger.Error("fetch machine for watcher", "machine_name", w.MachineName, "error", err)
 	}
+	s.logger.Debug("creating sync job to add existing files", "machine_name", w.MachineName, "watcher_name", w.Name)
 	syncJob := NewSyncJob(logger, w, machine, fileRepo, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
 	if _, err := syncJob.Run(true); err != nil {
 		logger.Error("add existing files for watcher", "watcher_name", w.Name, "error", err)
@@ -222,7 +223,7 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 	return &pb.SyncWatcherResponse{
 		AddedCount:   int64(result.AddedCount),
 		RemovedCount: int64(result.RemovedCount),
-		AddedFiles:   result.AddedFiles,
+		AddedFiles:   result.AddedFiles.Items(),
 		RemovedFiles: result.RemovedFiles,
 	}, nil
 }
@@ -296,7 +297,7 @@ func (s *WatcherService) StreamSyncWatcher(req *pb.SyncWatcherRequest, stream gr
 		Result: &pb.SyncWatcherResponse{
 			AddedCount:   int64(result.AddedCount),
 			RemovedCount: int64(result.RemovedCount),
-			AddedFiles:   result.AddedFiles,
+			AddedFiles:   result.AddedFiles.Items(),
 			RemovedFiles: result.RemovedFiles,
 		},
 	}); err != nil {

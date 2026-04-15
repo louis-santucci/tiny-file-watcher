@@ -113,7 +113,7 @@ func (s *sessionStore) reapLoop() {
 func (h *Handler) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !h.isAuthenticated(r) {
-			http.Redirect(w, r, "/auth/login", http.StatusFound)
+			http.Redirect(w, r, h.basePath+"/auth/login", http.StatusFound)
 			return
 		}
 		next(w, r)
@@ -134,7 +134,7 @@ func (h *Handler) isAuthenticated(r *http.Request) bool {
 // handleLoginPage renders the login page.
 func (h *Handler) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 	if h.isAuthenticated(r) {
-		http.Redirect(w, r, "/", http.StatusFound)
+		http.Redirect(w, r, h.basePath+"/", http.StatusFound)
 		return
 	}
 	h.render(w, "login.html", nil)
@@ -146,7 +146,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     stateCookieName,
 		Value:    state,
-		Path:     "/auth/callback",
+		Path:     h.basePath + "/auth/callback",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   300,
@@ -165,7 +165,7 @@ func (h *Handler) handleCallback(w http.ResponseWriter, r *http.Request) {
 	// Clear the state cookie.
 	http.SetCookie(w, &http.Cookie{
 		Name:   stateCookieName,
-		Path:   "/auth/callback",
+		Path:   h.basePath + "/auth/callback",
 		MaxAge: -1,
 	})
 
@@ -198,12 +198,12 @@ func (h *Handler) handleCallback(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    sessionID,
-		Path:     "/",
+		Path:     h.basePath + "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int(sessionTTL.Seconds()),
 	})
-	http.Redirect(w, r, "/", http.StatusFound)
+	http.Redirect(w, r, h.basePath+"/", http.StatusFound)
 }
 
 // handleLogout invalidates the session and redirects to the login page.
@@ -213,10 +213,10 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:   sessionCookieName,
-		Path:   "/",
+		Path:   h.basePath + "/",
 		MaxAge: -1,
 	})
-	http.Redirect(w, r, "/auth/login", http.StatusFound)
+	http.Redirect(w, r, h.basePath+"/auth/login", http.StatusFound)
 }
 
 func randomToken(n int) string {

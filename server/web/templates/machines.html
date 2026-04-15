@@ -27,7 +27,7 @@
     <tbody>
       {{range .Machines}}
       <tr id="machine-row-{{.Name}}">
-        <td><a href="/machines/{{.Name}}">{{.Name}}</a></td>
+        <td><a href="{{base}}/machines/{{.Name}}">{{.Name}}</a></td>
         <td>{{.Ip}}</td>
         <td>{{.SshPort}}</td>
         <td>{{.SshUser}}</td>
@@ -35,7 +35,7 @@
         <td>{{if .CreatedAt}}{{.CreatedAt.AsTime.Format "2006-01-02 15:04:05"}}{{else}}-{{end}}</td>
         <td>{{if .UpdatedAt}}{{.UpdatedAt.AsTime.Format "2006-01-02 15:04:05"}}{{else}}-{{end}}</td>
         <td>
-          <button hx-post="/machines/{{.Name}}/delete"
+          <button hx-post="{{base}}/machines/{{.Name}}/delete"
                   hx-confirm="Delete machine {{.Name}} and all its watchers?"
                   hx-target="#machine-row-{{.Name}}"
                   hx-swap="outerHTML"
@@ -57,7 +57,7 @@
               aria-label="Close" rel="prev"></button>
       <h3>Add machine</h3>
     </header>
-    <form method="POST" action="/machines">
+    <form method="POST" action="{{base}}/machines">
       <label>Name
         <input type="text" name="name" required placeholder="my-server"/>
       </label>

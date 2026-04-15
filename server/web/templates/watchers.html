@@ -3,30 +3,31 @@
 <h2>Watchers</h2>
 {{if .Watchers}}
 <figure>
-  <table>
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Source path</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{range .Watchers}}
-      <tr id="watcher-row-{{.Name}}">
-        <td><a href="/watchers/{{.Name}}">{{.Name}}</a></td>
-        <td>{{.SourcePath}}</td>
-        <td>
-          <button hx-post="/watchers/{{.Name}}/sync"
-                  hx-target="#sync-result-{{.Name}}"
-                  hx-swap="outerHTML"
-                  class="secondary small">Sync</button>
-          <span id="sync-result-{{.Name}}"></span>
-        </td>
-      </tr>
-      {{end}}
-    </tbody>
-  </table>
+    <table>
+        <thead>
+        <tr>
+            <th>Name</th>
+            <th>Source path</th>
+            <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        {{range .Watchers}}
+        <tr id="watcher-row-{{.Name}}">
+            <td><a href="{{base}}/watchers/{{.Name}}">{{.Name}}</a></td>
+            <td>{{.SourcePath}}</td>
+            <td>
+                <button hx-post="{{base}}/watchers/{{.Name}}/sync"
+                        hx-target="#sync-result-{{.Name}}"
+                        hx-swap="outerHTML"
+                        class="secondary small">Sync
+                </button>
+                <span id="sync-result-{{.Name}}"></span>
+            </td>
+        </tr>
+        {{end}}
+        </tbody>
+    </table>
 </figure>
 {{else}}
 <p>No watchers found.</p>

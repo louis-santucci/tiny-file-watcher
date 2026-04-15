@@ -1,6 +1,7 @@
 package mocks
 
 import (
+	"tiny-file-watcher/internal"
 	"tiny-file-watcher/server/database"
 
 	"github.com/stretchr/testify/mock"
@@ -19,7 +20,7 @@ func (m *MockFileRepository) AddWatchedFile(watcherName string, filePath string,
 	return nil, args.Error(1)
 }
 
-func (m *MockFileRepository) BulkAddWatchedFiles(watcherName string, files map[string]string, flushed bool) ([]*database.WatchedFile, error) {
+func (m *MockFileRepository) BulkAddWatchedFiles(watcherName string, files *internal.Set[string], flushed bool) ([]*database.WatchedFile, error) {
 	args := m.Called(watcherName, files, flushed)
 	if v := args.Get(0); v != nil {
 		return v.([]*database.WatchedFile), args.Error(1)

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"tiny-file-watcher/internal"
 	"tiny-file-watcher/server/test/mocks"
 	"tiny-file-watcher/server/test/testutil"
 
@@ -392,11 +393,11 @@ func TestSyncWatcher_FilterApplied(t *testing.T) {
 	machineRepo.On("GetMachineByToken", testToken).Return(machine, nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 	// The transactional repo receives the bulk add call with data.txt only.
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files map[string]string) bool {
-		if len(files) != 1 {
+	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+		if files.Size() != 1 {
 			return false
 		}
-		for _, v := range files {
+		for _, v := range files.Items() {
 			if v == accepted {
 				return true
 			}
@@ -409,8 +410,8 @@ func TestSyncWatcher_FilterApplied(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), resp.AddedCount)
 	txRepo.AssertExpectations(t)
-	txRepo.AssertNotCalled(t, "BulkAddWatchedFiles", "w", mock.MatchedBy(func(files map[string]string) bool {
-		for _, v := range files {
+	txRepo.AssertNotCalled(t, "BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+		for _, v := range files.Items() {
 			if v == rejected {
 				return true
 			}
@@ -547,11 +548,11 @@ func TestSyncWatcher_FlushExistingFalse_FilesAddedAsFlushed(t *testing.T) {
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
 	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files map[string]string) bool {
-		if len(files) != 1 {
+	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+		if files.Size() != 1 {
 			return false
 		}
-		for _, v := range files {
+		for _, v := range files.Items() {
 			if v == f1 {
 				return true
 			}

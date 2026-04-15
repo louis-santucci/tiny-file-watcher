@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"tiny-file-watcher/internal"
 )
 
 // TxDB wraps a *sql.Tx and implements watcher.FileRepository within a transaction.
@@ -13,25 +14,26 @@ type TxDB struct {
 	tx *sql.Tx
 }
 
-func (t *TxDB) BulkAddWatchedFiles(watcherName string, files map[string]string, flushed bool) ([]*WatchedFile, error) {
-	if len(files) == 0 {
+func (t *TxDB) BulkAddWatchedFiles(watcherName string, files *internal.Set[string], flushed bool) ([]*WatchedFile, error) {
+	if files.Size() == 0 {
 		return nil, nil
 	}
 
 	now := time.Now().UTC()
 	nowStr := now.Format(time.RFC3339)
 
-	placeholders := make([]string, 0, len(files))
-	args := make([]interface{}, 0, len(files)*5)
+	placeholders := make([]string, 0, files.Size())
+	args := make([]interface{}, 0, files.Size()*5)
 
 	type entry struct {
 		name      string
 		parentDir string
 	}
-	entries := make([]entry, 0, len(files))
+	entries := make([]entry, 0, files.Size())
 
-	for name, path := range files {
+	for _, path := range files.Items() {
 		parentDir := filepath.Dir(path)
+		name := filepath.Base(path)
 		placeholders = append(placeholders, "(?,?,?,?,?)")
 		args = append(args, watcherName, parentDir, name, flushed, nowStr)
 		entries = append(entries, entry{name: name, parentDir: parentDir})

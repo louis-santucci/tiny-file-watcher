@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"tiny-file-watcher/internal"
 	"tiny-file-watcher/server/database"
 
 	"github.com/stretchr/testify/mock"
@@ -12,7 +13,7 @@ type MockTransactionalFileRepository struct {
 	mock.Mock
 }
 
-func (m *MockTransactionalFileRepository) BulkAddWatchedFiles(watcherName string, files map[string]string, flushed bool) ([]*database.WatchedFile, error) {
+func (m *MockTransactionalFileRepository) BulkAddWatchedFiles(watcherName string, files *internal.Set[string], flushed bool) ([]*database.WatchedFile, error) {
 	args := m.Called(watcherName, files, flushed)
 	if v := args.Get(0); v != nil {
 		return v.([]*database.WatchedFile), args.Error(1)
@@ -48,7 +49,7 @@ func (NoopTransactor) WithTransaction(_ context.Context, fn func(database.Transa
 
 type noopTransactionalFileRepository struct{}
 
-func (*noopTransactionalFileRepository) BulkAddWatchedFiles(_ string, _ map[string]string, _ bool) ([]*database.WatchedFile, error) {
+func (*noopTransactionalFileRepository) BulkAddWatchedFiles(_ string, _ *internal.Set[string], _ bool) ([]*database.WatchedFile, error) {
 	return nil, nil
 }
 

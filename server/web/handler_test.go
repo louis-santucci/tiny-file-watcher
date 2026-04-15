@@ -17,6 +17,7 @@ func newTestHandler(t *testing.T) *Handler {
 		&mockRedirectionService{},
 		&mockMachineService{},
 		OIDCConfig{},
+		"",
 	)
 	require.NoError(t, err)
 	return h
@@ -29,6 +30,7 @@ func TestNew_Success(t *testing.T) {
 		&mockRedirectionService{},
 		&mockMachineService{},
 		OIDCConfig{},
+		"",
 	)
 	require.NoError(t, err)
 	assert.NotNil(t, h)
@@ -72,6 +74,7 @@ func newHandlerWithAuth(t *testing.T) *Handler {
 		&mockRedirectionService{},
 		&mockMachineService{},
 		OIDCConfig{},
+		"",
 	)
 	require.NoError(t, err)
 	// Activate session store without a real OIDC provider.

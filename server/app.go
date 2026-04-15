@@ -71,6 +71,7 @@ func NewApp() (*App, error) {
 	}
 
 	oidcCfg := oidcCfgFromConfig(cfg)
+	basePath, _ := cfg.StringOr("web.base-path", "")
 
 	var tokenVerifier interceptor.TokenVerifier
 	if oidcCfg.Enabled {
@@ -100,7 +101,7 @@ func NewApp() (*App, error) {
 	pb.RegisterFileFlushServiceServer(grpcServer, flushSvc)
 	pb.RegisterMachineServiceServer(grpcServer, machineSvc)
 
-	webHandler, err := web.New(watcherSvc, flushSvc, redirectionSvc, machineSvc, oidcCfg)
+	webHandler, err := web.New(watcherSvc, flushSvc, redirectionSvc, machineSvc, oidcCfg, basePath)
 	if err != nil {
 		return nil, fmt.Errorf("create web handler: %w", err)
 	}
@@ -133,6 +134,9 @@ func (a *App) Run() error {
 	if webEnabled {
 		webAddr, _ := a.config.String("web.address")
 		log.Printf("web UI available at http://localhost%s", webAddr)
+		if basePath, _ := a.config.StringOr("web.base-path", ""); basePath != "" {
+			log.Printf("web UI base path: %s", basePath)
+		}
 		go func() {
 			if err := http.ListenAndServe(webAddr, a.webHandler); err != nil {
 				log.Fatalf("web UI: serve: %v", err)

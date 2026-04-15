@@ -1,18 +1,19 @@
 {{template "base" .}}
 {{define "content"}}
 <hgroup>
-  <h2>{{.Watcher.Name}}</h2>
-  <p>{{.Watcher.SourcePath}}</p>
+    <h2>{{.Watcher.Name}}</h2>
+    <p>{{.Watcher.SourcePath}}</p>
 </hgroup>
 
 <div class="grid">
-  <p>
-    <button hx-post="/watchers/{{.Watcher.Name}}/sync"
-            hx-target="#sync-result"
-            hx-swap="innerHTML"
-            class="secondary small">Sync directory</button>
-    <span id="sync-result"></span>
-  </p>
+    <p>
+        <button hx-post="{{base}}/watchers/{{.Watcher.Name}}/sync"
+                hx-target="#sync-result"
+                hx-swap="innerHTML"
+                class="secondary small">Sync directory
+        </button>
+        <span id="sync-result"></span>
+    </p>
 </div>
 
 <hr/>
@@ -20,10 +21,16 @@
 <h4>Redirection</h4>
 {{if .Redirection}}
 <table>
-  <tbody>
-    <tr><th>Target path</th><td>{{.Redirection.TargetPath}}</td></tr>
-    <tr><th>Auto-flush</th><td>{{if .Redirection.AutoFlush}}Yes{{else}}No{{end}}</td></tr>
-  </tbody>
+    <tbody>
+    <tr>
+        <th>Target path</th>
+        <td>{{.Redirection.TargetPath}}</td>
+    </tr>
+    <tr>
+        <th>Auto-flush</th>
+        <td>{{if .Redirection.AutoFlush}}Yes{{else}}No{{end}}</td>
+    </tr>
+    </tbody>
 </table>
 {{else}}
 <p><em>No redirection configured.</em></p>
@@ -32,23 +39,24 @@
 <hr/>
 
 <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
-  <h4 style="margin:0">Pending files</h4>
-  <button hx-post="/watchers/{{.Watcher.Name}}/flush"
-          hx-target="#pending-files"
-          hx-swap="outerHTML"
-          class="small">Flush now</button>
+    <h4 style="margin:0">Pending files</h4>
+    <button hx-post="{{base}}/watchers/{{.Watcher.Name}}/flush"
+            hx-target="#pending-files"
+            hx-swap="outerHTML"
+            class="small">Flush now
+    </button>
 </div>
 
 {{if .Pending}}
 <ul id="pending-files"
-    hx-get="/watchers/{{.Watcher.Name}}"
+    hx-get="{{base}}/watchers/{{.Watcher.Name}}"
     hx-trigger="every 10s"
     hx-target="#pending-files"
     hx-select="#pending-files"
     hx-swap="outerHTML">
-  {{range .Pending}}
-  <li>{{.FileName}}</li>
-  {{end}}
+    {{range .Pending}}
+    <li>{{.FileName}}</li>
+    {{end}}
 </ul>
 {{else}}
 <p id="pending-files"><em>No pending files.</em></p>
@@ -57,14 +65,14 @@
 <hr/>
 
 <h4>Upload files</h4>
-<form hx-post="/watchers/{{.Watcher.Name}}/upload"
+<form hx-post="{{base}}/watchers/{{.Watcher.Name}}/upload"
       hx-encoding="multipart/form-data"
       hx-target="#upload-result"
       hx-swap="innerHTML">
-  <input type="file" name="files" multiple required>
-  <button type="submit">Upload</button>
+    <input type="file" name="files" multiple required>
+    <button type="submit">Upload</button>
 </form>
 <div id="upload-result"></div>
 
-<p><a href="/watchers">← Back to watchers</a></p>
+<p><a href="{{base}}/watchers">← Back to watchers</a></p>
 {{end}}

@@ -93,6 +93,7 @@ func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo data
 	if err != nil {
 		logger.Error("fetch machine for watcher", "machine_name", w.MachineName, "error", err)
 	}
+	s.logger.Debug("creating sync job to add existing files", "machine_name", w.MachineName, "watcher_name", w.Name)
 	syncJob := NewSyncJob(logger, w, machine, fileRepo, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
 	if _, err := syncJob.Run(true); err != nil {
 		logger.Error("add existing files for watcher", "watcher_name", w.Name, "error", err)

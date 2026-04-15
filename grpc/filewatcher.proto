@@ -181,7 +181,6 @@ message InitializeMachineRequest {
   int32 ssh_port = 4;
   string ssh_user = 5;
   string ssh_private_key = 6;
-  string ssh_host_public_key_path = 7;
 }
 
 message MachineResponse {
@@ -193,7 +192,6 @@ message MachineResponse {
   int32 ssh_port = 6;
   string ssh_user = 7;
   string ssh_private_key = 8;
-  string ssh_host_public_key_path = 9;
 }
 
 message DeleteMachineResponse {

@@ -17,9 +17,6 @@ import (
 
 // --- handleSync ---
 
-// machineName returns a pointer to a string for use in ListWatchersRequest.
-func strPtr(s string) *string { return &s }
-
 func TestHandleSync_Success(t *testing.T) {
 	watcherSvc := &mockWatcherService{}
 	machineSvc := &mockMachineService{}

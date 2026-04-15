@@ -50,7 +50,7 @@ func newSyncService(t *testing.T) (*watcher.WatcherService, *database.DB) {
 // seedMachineAndWatcher creates the necessary DB rows and returns the watcher.
 func seedMachineAndWatcher(t *testing.T, db *database.DB, srcDir string) {
 	t.Helper()
-	_, err := db.CreateMachine("integ-machine", integrationToken, "127.0.0.1", 22, "user", "key", "/tmp/host.pub")
+	_, err := db.CreateMachine("integ-machine", integrationToken, "127.0.0.1", 22, "user", "key")
 	require.NoError(t, err)
 	_, err = db.CreateWatcher("integ-watcher", srcDir, "integ-machine")
 	require.NoError(t, err)
@@ -400,13 +400,13 @@ func TestIntegration_Parity_SyncAndStreamProduceSameResult(t *testing.T) {
 
 	// Use separate DB instances so the two calls start from the same state.
 	svc1, db1 := newSyncService(t)
-	_, err := db1.CreateMachine("m", integrationToken, "127.0.0.1", 22, "u", "k", "/tmp/host.pub")
+	_, err := db1.CreateMachine("m", integrationToken, "127.0.0.1", 22, "u", "k")
 	require.NoError(t, err)
 	_, err = db1.CreateWatcher("integ-watcher", srcDir, "m")
 	require.NoError(t, err)
 
 	svc2, db2 := newSyncService(t)
-	_, err = db2.CreateMachine("m", integrationToken, "127.0.0.1", 22, "u", "k", "/tmp/host.pub")
+	_, err = db2.CreateMachine("m", integrationToken, "127.0.0.1", 22, "u", "k")
 	require.NoError(t, err)
 	_, err = db2.CreateWatcher("integ-watcher", srcDir, "m")
 	require.NoError(t, err)

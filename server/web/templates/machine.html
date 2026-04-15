@@ -12,7 +12,6 @@
     <tr><th>SSH Port</th><td>{{.Machine.SshPort}}</td></tr>
     <tr><th>SSH User</th><td>{{.Machine.SshUser}}</td></tr>
     <tr><th>SSH Private Key</th><td><code>{{.Machine.SshPrivateKey}}</code></td></tr>
-    <tr><th>SSH Known Hosts</th><td><code>{{.Machine.SshHostPublicKeyPath}}</code></td></tr>
     <tr><th>Created At</th><td>{{if .Machine.CreatedAt}}{{.Machine.CreatedAt.AsTime.Format "2006-01-02 15:04:05"}}{{else}}-{{end}}</td></tr>
     <tr><th>Updated At</th><td>{{if .Machine.UpdatedAt}}{{.Machine.UpdatedAt.AsTime.Format "2006-01-02 15:04:05"}}{{else}}-{{end}}</td></tr>
   </tbody>

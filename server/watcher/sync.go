@@ -200,10 +200,13 @@ func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read host public key %q: %w", j.machine.SSHHostPublicKeyPath, err)
 	}
-	hostPubKey, err := ssh.ParsePublicKey(hostKeyBytes)
+	authorizedKey, _, _, _, err := ssh.ParseAuthorizedKey(hostKeyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("parse host public key %q: %w", j.machine.SSHHostPublicKeyPath, err)
+		return nil, fmt.Errorf("parse authorized public key %q: %w", j.machine.SSHHostPublicKeyPath, err)
 	}
+
+	marshalledKey := authorizedKey.Marshal()
+	hostPubKey, err := ssh.ParsePublicKey(marshalledKey)
 
 	sshConfig := ssh.ClientConfig{
 		User: j.machine.SSHUser,

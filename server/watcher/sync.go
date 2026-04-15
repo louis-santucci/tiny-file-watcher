@@ -228,7 +228,7 @@ func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 				return []ssh.Signer{key}, nil
 			}),
 		},
-		HostKeyCallback: ssh.FixedHostKey(hostPubKey),
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
 	sshUrl := j.machine.IP + ":" + strconv.Itoa(int(j.machine.SSHPort))

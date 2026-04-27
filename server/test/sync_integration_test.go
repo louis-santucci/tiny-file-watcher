@@ -39,7 +39,6 @@ func newSyncService(t *testing.T) (*watcher.WatcherService, *database.DB) {
 	svc := watcher.NewManagerService(
 		db, db, db,
 		testutil.TestLogger(),
-		db,
 		watcher.WithSyncJobOptions(watcher.WithRemoteFS(watcher.LocalRemoteFS())),
 	)
 	return svc, db

@@ -1,7 +1,6 @@
 package database
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -38,26 +37,6 @@ type PendingFlush struct {
 	TargetMachineSSHPort           int32
 	TargetMachineSSHUser           string
 	TargetMachineSSHPrivateKeyPath string
-}
-
-func (db *DB) WithTransaction(ctx context.Context, fn func(tx TransactionalFileRepository) error) error {
-	tx, err := db.conn.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if p := recover(); p != nil {
-			_ = tx.Rollback()
-			panic(p)
-		}
-	}()
-
-	txDB := &TxDB{tx: tx}
-	if err := fn(txDB); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	return tx.Commit()
 }
 
 // AddWatchedFile inserts a newly detected file.

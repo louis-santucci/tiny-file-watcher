@@ -39,26 +39,21 @@ func newWatcher(id int64, name, path string) *database.FileWatcher {
 }
 
 func newService(fileWatcherRepository *mocks.MockFileWatcherRepository, fileRepository *mocks.MockFileRepository, machineRepository *mocks.MockMachineRepository) *watcher.WatcherService {
-	transactor := &mocks.MockTransactor{}
-	return watcher.NewManagerService(fileWatcherRepository, fileRepository, machineRepository, testutil.TestLogger(), transactor)
+	return watcher.NewManagerService(fileWatcherRepository, fileRepository, machineRepository, testutil.TestLogger())
 }
 
 // newServiceWithLocalFS creates a WatcherService that walks the local
-// filesystem instead of dialling SSH.  It uses a NoopTransactor so that the
-// sync path can complete without a database back-end.
+// filesystem instead of dialling SSH.
 func newServiceWithLocalFS(
 	fileWatcherRepository *mocks.MockFileWatcherRepository,
 	fileRepository *mocks.MockFileRepository,
 	machineRepository *mocks.MockMachineRepository,
-	txRepo *mocks.MockTransactionalFileRepository,
 ) *watcher.WatcherService {
-	transactor := &mocks.PassthroughTransactor{Repo: txRepo}
 	return watcher.NewManagerService(
 		fileWatcherRepository,
 		fileRepository,
 		machineRepository,
 		testutil.TestLogger(),
-		transactor,
 		watcher.WithSyncJobOptions(watcher.WithRemoteFS(watcher.LocalRemoteFS())),
 	)
 }
@@ -374,10 +369,8 @@ func TestSyncWatcher_FilterApplied(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
 	machineRepo := &mocks.MockMachineRepository{}
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	svc := newServiceWithLocalFS(fileWatcherRepo, fileRepo, machineRepo, txRepo)
+	svc := newServiceWithLocalFS(fileWatcherRepo, fileRepo, machineRepo)
 
-	// Only .txt files should be accepted; .log should be excluded.
 	accepted := filepath.Join(dir, "data.txt")
 	rejected := filepath.Join(dir, "debug.log")
 	for _, p := range []string{accepted, rejected} {
@@ -389,8 +382,7 @@ func TestSyncWatcher_FilterApplied(t *testing.T) {
 	machine := newMachineForSync()
 	machineRepo.On("GetMachineByName", "test-machine").Return(machine, nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
-	// The transactional repo receives the bulk add call with data.txt only.
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+	fileRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
 		if files.Size() != 1 {
 			return false
 		}
@@ -406,8 +398,8 @@ func TestSyncWatcher_FilterApplied(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), resp.AddedCount)
-	txRepo.AssertExpectations(t)
-	txRepo.AssertNotCalled(t, "BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+	fileRepo.AssertExpectations(t)
+	fileRepo.AssertNotCalled(t, "BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
 		for _, v := range files.Items() {
 			if v == rejected {
 				return true
@@ -441,8 +433,7 @@ func TestSyncWatcher_AlreadyInDB_NotReAdded(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
 	machineRepo := &mocks.MockMachineRepository{}
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	svc := newServiceWithLocalFS(fileWatcherRepo, fileRepo, machineRepo, txRepo)
+	svc := newServiceWithLocalFS(fileWatcherRepo, fileRepo, machineRepo)
 
 	existing := filepath.Join(dir, "existing.txt")
 	RequireNoError(t, os.WriteFile(existing, []byte("x"), 0o644))
@@ -459,7 +450,7 @@ func TestSyncWatcher_AlreadyInDB_NotReAdded(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), resp.AddedCount)
 	assert.Equal(t, int64(0), resp.RemovedCount)
-	txRepo.AssertNotCalled(t, "BulkAddWatchedFiles", mock.Anything, mock.Anything, mock.Anything)
+	fileRepo.AssertNotCalled(t, "BulkAddWatchedFiles", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestSyncWatcher_FlushExistingTrue_FilesAddedAsPending(t *testing.T) {
@@ -467,13 +458,11 @@ func TestSyncWatcher_FlushExistingTrue_FilesAddedAsPending(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
 	machineRepo := &mocks.MockMachineRepository{}
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	svc := newServiceWithLocalFS(fileWatcherRepo, fileRepo, machineRepo, txRepo)
+	svc := newServiceWithLocalFS(fileWatcherRepo, fileRepo, machineRepo)
 
 	f1 := filepath.Join(dir, "existing.txt")
 	RequireNoError(t, os.WriteFile(f1, []byte("x"), 0o644))
 
-	// Watcher has flush_existing=true → files should be added as pending (flushed=false).
 	w := newWatcher(1, "w", dir)
 	watchedFile := &database.WatchedFile{ID: 1, WatcherName: "w", FilePath: f1, Flushed: true}
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
@@ -489,7 +478,7 @@ func TestSyncWatcher_FlushExistingTrue_FilesAddedAsPending(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), resp.AddedCount)
-	txRepo.AssertNotCalled(t, "BulkAddWatchedFiles", mock.Anything, mock.Anything, mock.Anything)
+	fileRepo.AssertNotCalled(t, "BulkAddWatchedFiles", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestSyncWatcher_FlushExistingFalse_FilesAddedAsFlushed(t *testing.T) {
@@ -497,18 +486,16 @@ func TestSyncWatcher_FlushExistingFalse_FilesAddedAsFlushed(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
 	machineRepo := &mocks.MockMachineRepository{}
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	svc := newServiceWithLocalFS(fileWatcherRepo, fileRepo, machineRepo, txRepo)
+	svc := newServiceWithLocalFS(fileWatcherRepo, fileRepo, machineRepo)
 
 	f1 := filepath.Join(dir, "existing.txt")
 	RequireNoError(t, os.WriteFile(f1, []byte("x"), 0o644))
 
-	// Watcher has flush_existing=false (default) → files added as already flushed (flushed=false per SyncWatcher).
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
 	machineRepo.On("GetMachineByName", "test-machine").Return(newMachineForSync(), nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+	fileRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
 		if files.Size() != 1 {
 			return false
 		}
@@ -524,7 +511,7 @@ func TestSyncWatcher_FlushExistingFalse_FilesAddedAsFlushed(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), resp.AddedCount)
-	txRepo.AssertExpectations(t)
+	fileRepo.AssertExpectations(t)
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -561,8 +548,7 @@ func TestSyncWatcher_ConcurrentSync_AlreadyExists(t *testing.T) {
 	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
 	fileRepo := &mocks.MockFileRepository{}
 	machineRepo := &mocks.MockMachineRepository{}
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	svc := newServiceWithLocalFS(fileWatcherRepo, fileRepo, machineRepo, txRepo)
+	svc := newServiceWithLocalFS(fileWatcherRepo, fileRepo, machineRepo)
 
 	w := newWatcher(1, "w", dir)
 	machine := newMachineForSync()

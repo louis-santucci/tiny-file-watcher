@@ -1,7 +1,6 @@
 package watcher
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -56,7 +55,6 @@ type SyncJob struct {
 	logger            *slog.Logger
 	fileRepository    database.FileRepository
 	watcherRepository database.FileWatcherRepository
-	transactor        database.Transactor
 	// remoteFS overrides the SSH/SFTP transport when set (used in tests).
 	remoteFS RemoteFS
 	// onLog is an optional callback invoked with a human-readable message at
@@ -99,14 +97,13 @@ type SyncResult struct {
 	RemovedFiles []string
 }
 
-func NewSyncJob(logger *slog.Logger, watcher *database.FileWatcher, machine *database.Machine, fileRepo database.FileRepository, watcherRepo database.FileWatcherRepository, transactor database.Transactor, opts ...SyncJobOption) *SyncJob {
+func NewSyncJob(logger *slog.Logger, watcher *database.FileWatcher, machine *database.Machine, fileRepo database.FileRepository, watcherRepo database.FileWatcherRepository, opts ...SyncJobOption) *SyncJob {
 	j := &SyncJob{
 		watcher:           watcher,
 		machine:           machine,
 		logger:            logger,
 		fileRepository:    fileRepo,
 		watcherRepository: watcherRepo,
-		transactor:        transactor,
 	}
 	for _, opt := range opts {
 		opt(j)
@@ -210,24 +207,17 @@ func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 }
 
 func (j *SyncJob) saveUpdates(addedFiles *Set[string], removedFiles []string, flush bool) error {
-	err := j.transactor.WithTransaction(context.Background(), func(repo database.TransactionalFileRepository) error {
-		if addedFiles.Size() > 0 {
-			_, err := repo.BulkAddWatchedFiles(j.watcher.Name, addedFiles, flush)
-			if err != nil {
-				return err
-			}
+	if addedFiles.Size() > 0 {
+		if _, err := j.fileRepository.BulkAddWatchedFiles(j.watcher.Name, addedFiles, flush); err != nil {
+			j.logger.Error("sync: database error on bulk add", "error", err, "watcher", j.watcher.Name)
+			return err
 		}
-		if len(removedFiles) > 0 {
-			err := repo.BulkRemoveWatchedFiles(j.watcher.Name, removedFiles)
-			if err != nil {
-				return err
-			}
+	}
+	if len(removedFiles) > 0 {
+		if err := j.fileRepository.BulkRemoveWatchedFiles(j.watcher.Name, removedFiles); err != nil {
+			j.logger.Error("sync: database error on bulk remove", "error", err, "watcher", j.watcher.Name)
+			return err
 		}
-		return nil
-	})
-	if err != nil {
-		j.logger.Error("sync: database error on update", "error", err, "watcher", j.watcher.Name)
-		return err
 	}
 	return nil
 }

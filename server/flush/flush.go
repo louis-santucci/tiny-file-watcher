@@ -77,6 +77,8 @@ func (j *FlushJob) Run() (bool, error) {
 		return true, nil
 	}
 
+	j.log(fmt.Sprintf("found %d pending flush(es)", len(pendingFiles)))
+
 	pool := newClientPool(j.dialer)
 	defer pool.closeAll()
 

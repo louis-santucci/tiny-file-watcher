@@ -59,7 +59,7 @@ var runFlushCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		svc := pb.NewFileFlushServiceClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 
 		resp, err := svc.StreamFlushWatcher(ctx, &pb.FlushWatcherRequest{Name: args[0]})

@@ -8,10 +8,10 @@ import (
 	"strconv"
 	. "tiny-file-watcher/internal"
 	"tiny-file-watcher/server/database"
+	tfwssh "tiny-file-watcher/server/ssh"
 
 	"github.com/kr/fs"
 	"github.com/pkg/sftp"
-	"golang.org/x/crypto/ssh"
 )
 
 // RemoteFS abstracts the file-system operations performed against the remote
@@ -182,8 +182,8 @@ func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
 
 // openRemoteFS returns the RemoteFS to use for this sync run.
 // If one was injected via WithRemoteFS it is returned directly.
-// Otherwise an SSH/SFTP connection is established using a FixedHostKey
-// loaded from the path stored on the machine record.
+// Otherwise an SSH/SFTP connection is established using the credentials
+// stored on the machine record.
 func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 	if j.remoteFS != nil {
 		return j.remoteFS, nil
@@ -191,38 +191,22 @@ func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 
 	j.logger.Debug("private key path", "path", j.machine.SSHPrivateKeyPath)
 
-	sshConfig := ssh.ClientConfig{
-		User: j.machine.SSHUser,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
-				keyBytes, err := os.ReadFile(j.machine.SSHPrivateKeyPath)
-				if err != nil {
-					return nil, err
-				}
-				key, err := ssh.ParsePrivateKey(keyBytes)
-				if err != nil {
-					return nil, err
-				}
-				return []ssh.Signer{key}, nil
-			}),
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	cfg := tfwssh.MachineConfig{
+		Name:              j.machine.Name,
+		IP:                j.machine.IP,
+		SSHPort:           j.machine.SSHPort,
+		SSHUser:           j.machine.SSHUser,
+		SSHPrivateKeyPath: j.machine.SSHPrivateKeyPath,
 	}
 
-	sshUrl := j.machine.IP + ":" + strconv.Itoa(int(j.machine.SSHPort))
-	j.logger.Debug("sync: SSH URL: " + sshUrl)
-	sshConnection, err := ssh.Dial("tcp", sshUrl, &sshConfig)
+	j.logger.Debug("sync: SSH URL: " + cfg.IP + ":" + strconv.Itoa(int(cfg.SSHPort)))
+
+	client, err := tfwssh.NewClient(cfg)
 	if err != nil {
 		j.logger.Error("failed to connect to machine", "error", err)
 		return nil, err
 	}
-	sftpClient, err := sftp.NewClient(sshConnection)
-	if err != nil {
-		j.logger.Error("failed to create SFTP sftpClient", "error", err)
-		sshConnection.Close()
-		return nil, err
-	}
-	return sftpRemoteFS{c: sftpClient}, nil
+	return sftpRemoteFS{c: client.SFTPClient}, nil
 }
 
 func (j *SyncJob) saveUpdates(addedFiles *Set[string], removedFiles []string, flush bool) error {

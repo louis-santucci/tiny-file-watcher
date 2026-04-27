@@ -22,7 +22,9 @@ func init() {
 	// create
 	createRedirectionCmd.Flags().StringP("target", "t", "", "Target path for the redirection (required)")
 	createRedirectionCmd.Flags().Bool("auto-flush", false, "Enable auto-flush on redirection")
+	createRedirectionCmd.Flags().StringP("target-machine", "m", "", "Name of the machine where files will be written (required)")
 	_ = createRedirectionCmd.MarkFlagRequired("target")
+	_ = createRedirectionCmd.MarkFlagRequired("target-machine")
 
 	// update
 	updateRedirectionCmd.Flags().String("target", "", "New target path for the redirection")
@@ -62,15 +64,17 @@ var createRedirectionCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		target, _ := cmd.Flags().GetString("target")
 		autoFlush, _ := cmd.Flags().GetBool("auto-flush")
+		targetMachine, _ := cmd.Flags().GetString("target-machine")
 
 		svc := pb.NewFileRedirectionServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		r, err := svc.CreateFileRedirection(ctx, &pb.CreateFileRedirectionRequest{
-			WatcherName: args[0],
-			TargetPath:  target,
-			AutoFlush:   autoFlush,
+			WatcherName:       args[0],
+			TargetPath:        target,
+			AutoFlush:         autoFlush,
+			TargetMachineName: targetMachine,
 		})
 		if err != nil {
 			return err
@@ -151,15 +155,16 @@ var deleteRedirectionCmd = &cobra.Command{
 
 func printRedirections(redirections []*pb.FileRedirection) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "WATCHER\tTARGET PATH\tAUTO FLUSH\tCREATED AT")
-	fmt.Fprintln(w, "-------\t-----------\t----------\t----------")
+	fmt.Fprintln(w, "WATCHER\tTARGET MACHINE\tTARGET PATH\tAUTO FLUSH\tCREATED AT")
+	fmt.Fprintln(w, "-------\t--------------\t-----------\t----------\t----------")
 	for _, r := range redirections {
 		created := "-"
 		if r.CreatedAt != nil {
 			created = r.CreatedAt.AsTime().Format(time.DateTime)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%v\t%s\n",
+		fmt.Fprintf(w, "%s\t%s\t%s\t%v\t%s\n",
 			r.WatcherName,
+			r.TargetMachineName,
 			r.TargetPath,
 			r.AutoFlush,
 			created,

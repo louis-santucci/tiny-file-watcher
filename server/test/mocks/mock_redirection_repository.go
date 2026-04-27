@@ -11,8 +11,8 @@ type MockRedirectionRepository struct {
 	mock.Mock
 }
 
-func (m *MockRedirectionRepository) AddRedirection(watcherName string, targetPath string, autoFlush bool) (*database.FileRedirection, error) {
-	args := m.Called(watcherName, targetPath, autoFlush)
+func (m *MockRedirectionRepository) AddRedirection(watcherName string, targetPath string, autoFlush bool, targetMachineName string) (*database.FileRedirection, error) {
+	args := m.Called(watcherName, targetPath, autoFlush, targetMachineName)
 	if v := args.Get(0); v != nil {
 		return v.(*database.FileRedirection), args.Error(1)
 	}

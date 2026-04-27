@@ -93,7 +93,7 @@ func NewApp() (*App, error) {
 	)
 	reflection.Register(grpcServer)
 	watcherSvc := watcher.NewManagerService(db, db, db, logger, db)
-	redirectionSvc := redirection.NewRedirectionService(db, db, db, logger)
+	redirectionSvc := redirection.NewRedirectionService(db, db, db, db, logger)
 	flushSvc := flush.NewFlushService(db, logger)
 	machineSvc := machine.NewMachineService(db, logger)
 	pb.RegisterFileWatcherServiceServer(grpcServer, watcherSvc)

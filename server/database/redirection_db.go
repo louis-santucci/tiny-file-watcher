@@ -9,26 +9,25 @@ import (
 type FileRedirection struct {
 	WatcherName       string
 	TargetPath        string
-	AutoFlush         bool
 	TargetMachineName string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
 
-func (db *DB) AddRedirection(watcherName string, targetPath string, autoFlush bool, targetMachineName string) (*FileRedirection, error) {
+func (db *DB) AddRedirection(watcherName string, targetPath string, targetMachineName string) (*FileRedirection, error) {
 	now := time.Now().UTC()
 	_, err := db.conn.Exec(
-		"INSERT INTO file_redirections (watcher_name, target_path, auto_flush, target_machine_name, created_at, updated_at) VALUES (?,?,?,?,?,?)",
-		watcherName, targetPath, autoFlush, targetMachineName, now.Format(time.RFC3339), now.Format(time.RFC3339),
+		"INSERT INTO file_redirections (watcher_name, target_path, target_machine_name, created_at, updated_at) VALUES (?,?,?,?,?)",
+		watcherName, targetPath, targetMachineName, now.Format(time.RFC3339), now.Format(time.RFC3339),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create redirection: %w", err)
 	}
-	return &FileRedirection{WatcherName: watcherName, TargetPath: targetPath, AutoFlush: autoFlush, TargetMachineName: targetMachineName, CreatedAt: now, UpdatedAt: now}, nil
+	return &FileRedirection{WatcherName: watcherName, TargetPath: targetPath, TargetMachineName: targetMachineName, CreatedAt: now, UpdatedAt: now}, nil
 }
 
 func (db *DB) GetRedirection(watcherName string) (*FileRedirection, error) {
-	row := db.conn.QueryRow("SELECT watcher_name, target_path, auto_flush, target_machine_name, created_at, updated_at FROM file_redirections WHERE watcher_name = ?", watcherName)
+	row := db.conn.QueryRow("SELECT watcher_name, target_path, target_machine_name, created_at, updated_at FROM file_redirections WHERE watcher_name = ?", watcherName)
 	return scanFileRedirection(row)
 }
 
@@ -43,8 +42,8 @@ func (db *DB) RemoveRedirection(watcherName string) error {
 	return nil
 }
 
-func (db *DB) UpdateRedirection(watcherName string, filePath *string, autoFlush *bool) (*FileRedirection, error) {
-	if filePath == nil && autoFlush == nil {
+func (db *DB) UpdateRedirection(watcherName string, filePath *string) (*FileRedirection, error) {
+	if filePath == nil {
 		return db.GetRedirection(watcherName)
 	}
 
@@ -55,10 +54,6 @@ func (db *DB) UpdateRedirection(watcherName string, filePath *string, autoFlush 
 	if filePath != nil {
 		setClauses = append(setClauses, "target_path = ?")
 		args = append(args, filePath)
-	}
-	if autoFlush != nil {
-		setClauses = append(setClauses, "auto_flush = ?")
-		args = append(args, autoFlush)
 	}
 	setClauses = append(setClauses, "updated_at = ?")
 	args = append(args, now.Format(time.RFC3339))
@@ -77,12 +72,10 @@ func (db *DB) UpdateRedirection(watcherName string, filePath *string, autoFlush 
 
 func scanFileRedirection(s scanner) (*FileRedirection, error) {
 	var fileRedirection FileRedirection
-	var autoFlush int
 	var createdStr, updatedStr string
-	if err := s.Scan(&fileRedirection.WatcherName, &fileRedirection.TargetPath, &autoFlush, &fileRedirection.TargetMachineName, &createdStr, &updatedStr); err != nil {
+	if err := s.Scan(&fileRedirection.WatcherName, &fileRedirection.TargetPath, &fileRedirection.TargetMachineName, &createdStr, &updatedStr); err != nil {
 		return nil, fmt.Errorf("scan file redirection: %w", err)
 	}
-	fileRedirection.AutoFlush = autoFlush != 0
 	createdAt, err := time.Parse(time.RFC3339, createdStr)
 	if err != nil {
 		return nil, fmt.Errorf("parse created_at: %w", err)

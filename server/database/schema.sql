@@ -37,7 +37,6 @@ CREATE TABLE IF NOT EXISTS file_redirections
 (
     watcher_name        TEXT PRIMARY KEY REFERENCES file_watchers(name) ON DELETE CASCADE,
     target_path         TEXT    NOT NULL,
-    auto_flush          INTEGER NOT NULL DEFAULT 0,
     target_machine_name TEXT    NOT NULL REFERENCES machines(name),
     created_at          TEXT    NOT NULL,
     updated_at          TEXT    NOT NULL

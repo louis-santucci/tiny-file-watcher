@@ -95,7 +95,7 @@ func TestIntegration_WatcherDeleteCascades(t *testing.T) {
 	_, err = db.CreateWatcher("cascade-watcher", srcDir, TestMachine)
 	require.NoError(t, err)
 
-	_, err = db.AddRedirection("cascade-watcher", tgtDir, false, TestMachine)
+	_, err = db.AddRedirection("cascade-watcher", tgtDir, TestMachine)
 	require.NoError(t, err)
 
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "drop.txt"), []byte("x"), 0644))

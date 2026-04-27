@@ -43,7 +43,7 @@ func (s *RedirectionService) CreateFileRedirection(_ context.Context, req *pb.Cr
 		return nil, status.Errorf(codes.NotFound, "target machine %q not found", req.TargetMachineName)
 	}
 
-	redirection, err := s.redirectionRepository.AddRedirection(req.WatcherName, req.TargetPath, req.AutoFlush, req.TargetMachineName)
+	redirection, err := s.redirectionRepository.AddRedirection(req.WatcherName, req.TargetPath, req.TargetMachineName)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "add redirection: %v", err)
 	}
@@ -62,7 +62,7 @@ func (s *RedirectionService) UpdateFileRedirection(_ context.Context, req *pb.Up
 	if req.WatcherName == "" || req.TargetPath == nil {
 		return nil, status.Error(codes.InvalidArgument, "watcher_name and target_path are required")
 	}
-	redirection, err := s.redirectionRepository.UpdateRedirection(req.WatcherName, req.TargetPath, req.AutoFlush)
+	redirection, err := s.redirectionRepository.UpdateRedirection(req.WatcherName, req.TargetPath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "update redirection: %v", err)
 	}
@@ -80,7 +80,6 @@ func toProto(r *database.FileRedirection) *pb.FileRedirection {
 	return &pb.FileRedirection{
 		WatcherName:       r.WatcherName,
 		TargetPath:        r.TargetPath,
-		AutoFlush:         r.AutoFlush,
 		TargetMachineName: r.TargetMachineName,
 		CreatedAt:         timestamppb.New(r.CreatedAt),
 		UpdatedAt:         timestamppb.New(r.UpdatedAt),

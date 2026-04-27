@@ -49,8 +49,9 @@ func newClientPool(dialer *SFTPDialer) *clientPool {
 	return &clientPool{dialer: dialer, clients: make(map[string]SFTPClient)}
 }
 
-func NewFlushJob(logger *slog.Logger, repository database.FlushRepository, dialer *SFTPDialer, opts ...FlushJobOption) *FlushJob {
+func NewFlushJob(watcherName string, logger *slog.Logger, repository database.FlushRepository, dialer *SFTPDialer, opts ...FlushJobOption) *FlushJob {
 	job := &FlushJob{
+		watcherName:     watcherName,
 		logger:          logger,
 		flushRepository: repository,
 		dialer:          dialer,

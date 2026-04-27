@@ -125,7 +125,7 @@ func (s *FlushService) StreamFlushWatcher(req *pb.FlushWatcherRequest, stream gr
 		_ = sendLog(msg)
 	})
 
-	job := NewFlushJob(s.logger, s.flushRepository, &s.dialer, logCallback)
+	job := NewFlushJob(req.Name, s.logger, s.flushRepository, &s.dialer, logCallback)
 
 	result, err := job.Run()
 	if err != nil {
@@ -179,7 +179,7 @@ func (s *FlushService) FlushWatcher(_ context.Context, req *pb.FlushWatcherReque
 		return nil, status.Error(codes.InvalidArgument, "name is required")
 	}
 
-	job := NewFlushJob(s.logger, s.flushRepository, &s.dialer)
+	job := NewFlushJob(req.Name, s.logger, s.flushRepository, &s.dialer)
 
 	result, err := job.Run()
 	if err != nil {

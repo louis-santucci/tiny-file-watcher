@@ -21,7 +21,7 @@ var watcherCmd = &cobra.Command{
 }
 
 var watchedFilsShowPath bool
-var listWatchersAllMachines bool
+var listWatchersMachine string
 
 func init() {
 	// create
@@ -34,7 +34,7 @@ func init() {
 	updateWatcherCmd.Flags().String("path", "", "New source path for the watcher")
 
 	listWatcherFilesCmd.Flags().BoolVarP(&watchedFilsShowPath, "show-path", "p", false, "Show the full file path column in the output table")
-	listWatchersCmd.Flags().BoolVarP(&listWatchersAllMachines, "all", "a", false, "List watchers from all machines (default: current machine only)")
+	listWatchersCmd.Flags().StringVarP(&listWatchersMachine, "machine", "m", "", "Filter watchers by machine name")
 
 	// sync
 	syncWatcherCmd.Flags().Bool("no-stream", false, "Use the unary SyncWatcher RPC instead of the default streaming RPC")
@@ -78,13 +78,8 @@ var listWatchersCmd = &cobra.Command{
 		defer cancel()
 
 		req := &pb.ListWatchersRequest{}
-		if !listWatchersAllMachines {
-			machineName, err := clientmachine.LoadMachineName()
-			if err == nil {
-				req.MachineName = &machineName
-			} else {
-				fmt.Fprintln(os.Stderr, "note: machine not initialized, listing watchers from all machines (run 'tfw machine init' to associate a machine)")
-			}
+		if listWatchersMachine != "" {
+			req.MachineName = &listWatchersMachine
 		}
 
 		resp, err := svc.ListWatchers(ctx, req)

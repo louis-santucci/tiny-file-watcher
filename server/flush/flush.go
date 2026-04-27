@@ -33,10 +33,20 @@ type FlushJob struct {
 	onLog func(string)
 }
 
+// clientPool caches open SFTP connections keyed by machine name.
+type clientPool struct {
+	dialer  *SFTPDialer
+	clients map[string]SFTPClient
+}
+
 func (j *FlushJob) log(msg string) {
 	if j.onLog != nil {
 		j.onLog(msg)
 	}
+}
+
+func newClientPool(dialer *SFTPDialer) *clientPool {
+	return &clientPool{dialer: dialer, clients: make(map[string]SFTPClient)}
 }
 
 func NewFlushJob(logger *slog.Logger, repository database.FlushRepository, dialer *SFTPDialer, opts ...FlushJobOption) *FlushJob {
@@ -66,59 +76,13 @@ func (j *FlushJob) Run() (bool, error) {
 		return true, nil
 	}
 
-	clients := make(map[string]SFTPClient)
-	defer func() {
-		for _, client := range clients {
-			client.Close()
-		}
-	}()
-
-	getClient := func(name, ip string, port int32, user, keyPath string) (SFTPClient, error) {
-		if c, ok := clients[name]; ok {
-			return c, nil
-		}
-		c, err := (*j.dialer).Dial(tfwssh.MachineConfig{
-			Name:              name,
-			IP:                ip,
-			SSHPort:           port,
-			SSHUser:           user,
-			SSHPrivateKeyPath: keyPath,
-		})
-		if err != nil {
-			return nil, err
-		}
-		clients[name] = c
-		return c, nil
-	}
+	pool := newClientPool(j.dialer)
+	defer pool.closeAll()
 
 	ids := make([]int64, 0, len(pendingFiles))
 	for _, pf := range pendingFiles {
-		srcClient, err := getClient(
-			pf.MachineName, pf.MachineIP, pf.MachineSSHPort,
-			pf.MachineSSHUser, pf.MachineSSHPrivateKeyPath,
-		)
-		if err != nil {
-			return false, status.Errorf(codes.Internal, "connect to source machine %s: %v", pf.MachineName, err)
-		}
-
-		// Reuse the same client when source == target machine.
-		var dstClient SFTPClient
-		if pf.MachineName == pf.TargetMachineName {
-			dstClient = srcClient
-		} else {
-			dstClient, err = getClient(
-				pf.TargetMachineName, pf.TargetMachineIP, pf.TargetMachineSSHPort,
-				pf.TargetMachineSSHUser, pf.TargetMachineSSHPrivateKeyPath,
-			)
-			if err != nil {
-				return false, status.Errorf(codes.Internal, "connect to target machine %s: %v", pf.TargetMachineName, err)
-			}
-		}
-
-		src := filepath.Join(pf.FilePath, pf.FileName)
-		dst := filepath.Join(pf.TargetPath, pf.FileName)
-		if err := transferFile(srcClient, dstClient, src, dst); err != nil {
-			return false, status.Errorf(codes.Internal, "transfer file %s: %v", src, err)
+		if err := j.transferPendingFile(pool, pf); err != nil {
+			return false, err
 		}
 		ids = append(ids, pf.WatchedFileID)
 	}
@@ -128,6 +92,50 @@ func (j *FlushJob) Run() (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (j *FlushJob) transferPendingFile(pool *clientPool, pf *database.PendingFlush) error {
+	srcClient, err := pool.get(pf.MachineName, pf.MachineIP, pf.MachineSSHPort, pf.MachineSSHUser, pf.MachineSSHPrivateKeyPath)
+	if err != nil {
+		return status.Errorf(codes.Internal, "connect to source machine %s: %v", pf.MachineName, err)
+	}
+
+	dstClient, err := pool.get(pf.TargetMachineName, pf.TargetMachineIP, pf.TargetMachineSSHPort, pf.TargetMachineSSHUser, pf.TargetMachineSSHPrivateKeyPath)
+	if err != nil {
+		return status.Errorf(codes.Internal, "connect to target machine %s: %v", pf.TargetMachineName, err)
+	}
+
+	src := filepath.Join(pf.FilePath, pf.FileName)
+	dst := filepath.Join(pf.TargetPath, pf.FileName)
+	if err := transferFile(srcClient, dstClient, src, dst); err != nil {
+		return status.Errorf(codes.Internal, "transfer file %s: %v", src, err)
+	}
+
+	return nil
+}
+
+func (p *clientPool) get(name, ip string, port int32, user, keyPath string) (SFTPClient, error) {
+	if c, ok := p.clients[name]; ok {
+		return c, nil
+	}
+	c, err := (*p.dialer).Dial(tfwssh.MachineConfig{
+		Name:              name,
+		IP:                ip,
+		SSHPort:           port,
+		SSHUser:           user,
+		SSHPrivateKeyPath: keyPath,
+	})
+	if err != nil {
+		return nil, err
+	}
+	p.clients[name] = c
+	return c, nil
+}
+
+func (p *clientPool) closeAll() {
+	for _, c := range p.clients {
+		c.Close()
+	}
 }
 
 // transferFile copies a file from src on srcClient to dst on dstClient,

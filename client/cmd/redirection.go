@@ -20,13 +20,13 @@ var redirectionCmd = &cobra.Command{
 
 func init() {
 	// create
-	createRedirectionCmd.Flags().StringP("target", "t", "", "Target path for the redirection (required)")
-	createRedirectionCmd.Flags().StringP("target-machine", "m", "", "Name of the machine where files will be written (required)")
-	_ = createRedirectionCmd.MarkFlagRequired("target")
-	_ = createRedirectionCmd.MarkFlagRequired("target-machine")
+	createRedirectionCmd.Flags().StringP("path", "p", "", "Target path for the redirection (required)")
+	createRedirectionCmd.Flags().StringP("machine", "m", "", "Name of the machine where files will be written (required)")
+	_ = createRedirectionCmd.MarkFlagRequired("path")
+	_ = createRedirectionCmd.MarkFlagRequired("machine")
 
 	// update
-	updateRedirectionCmd.Flags().String("target", "", "New target path for the redirection")
+	updateRedirectionCmd.Flags().StringP("path", "p", "", "New target path for the redirection")
 
 	redirectionCmd.AddCommand(
 		getRedirectionCmd,
@@ -60,8 +60,8 @@ var createRedirectionCmd = &cobra.Command{
 	Short: "Create a new file redirection for a watcher",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		target, _ := cmd.Flags().GetString("target")
-		targetMachine, _ := cmd.Flags().GetString("target-machine")
+		target, _ := cmd.Flags().GetString("path")
+		targetMachine, _ := cmd.Flags().GetString("machine")
 
 		svc := pb.NewFileRedirectionServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -87,10 +87,10 @@ var updateRedirectionCmd = &cobra.Command{
 	Short: "Update a file redirection's target path",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		newTarget, _ := cmd.Flags().GetString("target")
+		newTarget, _ := cmd.Flags().GetString("path")
 
 		if newTarget == "" {
-			return fmt.Errorf("--target must be provided")
+			return fmt.Errorf("--path must be provided")
 		}
 
 		req := &pb.UpdateFileRedirectionRequest{WatcherName: args[0]}

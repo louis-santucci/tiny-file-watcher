@@ -8,7 +8,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	clientmachine "tiny-file-watcher/client/machine"
 	pb "tiny-file-watcher/gen/grpc"
 
 	"github.com/spf13/cobra"
@@ -27,6 +26,8 @@ func init() {
 	// create
 	createWatcherCmd.Flags().StringP("path", "p", "", "Source path to watch (required)")
 	_ = createWatcherCmd.MarkFlagRequired("path")
+	createWatcherCmd.Flags().StringP("machine", "m", "", "Target machine name (required)")
+	_ = createWatcherCmd.MarkFlagRequired("machine")
 	createWatcherCmd.Flags().Bool("flush-existing", false, "Add files already on disk as pending (to be flushed); by default they are recorded as already flushed")
 
 	// update
@@ -118,11 +119,7 @@ var createWatcherCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		path, _ := cmd.Flags().GetString("path")
 		flushExisting, _ := cmd.Flags().GetBool("flush-existing")
-
-		machineName, err := clientmachine.LoadMachineName()
-		if err != nil {
-			return fmt.Errorf("could not determine current machine: %w\nRun 'tfw machine init <name>' first", err)
-		}
+		machineName, _ := cmd.Flags().GetString("machine")
 
 		watcherSvc := pb.NewFileWatcherServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

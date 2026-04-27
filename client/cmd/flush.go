@@ -27,6 +27,7 @@ func init() {
 		runFlushCmd,
 	)
 	pendingFilesCmd.Flags().BoolVarP(&flushShowPath, "show-path", "p", false, "Show the full file path column in the output table")
+	runFlushCmd.Flags().Bool("no-stream", false, "Use the unary RPC instead of the streaming RPC")
 }
 
 var pendingFilesCmd = &cobra.Command{
@@ -56,40 +57,78 @@ var pendingFilesCmd = &cobra.Command{
 var runFlushCmd = &cobra.Command{
 	Use:   "run <watcher-name>",
 	Short: "Flush pending files for a watcher",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		svc := pb.NewFileFlushServiceClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
+	Long: `Flush pending files for a watcher.
 
-		resp, err := svc.StreamFlushWatcher(ctx, &pb.FlushWatcherRequest{Name: args[0]})
+By default the command uses the streaming RPC (StreamFlushWatcher) and prints
+progress messages as they arrive.  Pass --no-stream to fall back to the
+unary RPC (FlushWatcher) for a single-response call.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		noStream, _ := cmd.Flags().GetBool("no-stream")
+		svc := pb.NewFileFlushServiceClient(conn)
+
+		if noStream {
+			return runUnaryFlushWatcher(svc, args[0])
+		}
+		return runStreamFlushWatcher(svc, args[0])
+	},
+}
+
+// runUnaryFlushWatcher calls the unary FlushWatcher RPC and prints the result.
+func runUnaryFlushWatcher(svc pb.FileFlushServiceClient, name string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	resp, err := svc.FlushWatcher(ctx, &pb.FlushWatcherRequest{Name: name})
+	if err != nil {
+		return err
+	}
+
+	printFlushResult(name, resp.Success)
+	return nil
+}
+
+// runStreamFlushWatcher calls the server-streaming StreamFlushWatcher RPC,
+// prints LOG events as they arrive, and prints the final result from the
+// RESULT event.
+func runStreamFlushWatcher(svc pb.FileFlushServiceClient, name string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	stream, err := svc.StreamFlushWatcher(ctx, &pb.FlushWatcherRequest{Name: name})
+	if err != nil {
+		return err
+	}
+
+	for {
+		event, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
 		if err != nil {
 			return err
 		}
 
-		for {
-			event, err := resp.Recv()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return err
-			}
-
-			switch event.Type {
-			case pb.FlushWatcherEvent_LOG:
-				fmt.Printf("[flush] %s\n", event.Message)
-			case pb.FlushWatcherEvent_RESULT:
-				if r := event.Result; r != nil && r.Success {
-					fmt.Printf("Watcher %q flushed successfully.\n", args[0])
-				} else {
-					fmt.Printf("Watcher %q could not be flushed.\n", args[0])
-				}
+		switch event.Type {
+		case pb.FlushWatcherEvent_LOG:
+			fmt.Printf("[flush] %s\n", event.Message)
+		case pb.FlushWatcherEvent_RESULT:
+			if r := event.Result; r != nil {
+				printFlushResult(name, r.Success)
 			}
 		}
+	}
 
-		return nil
-	},
+	return nil
+}
+
+// printFlushResult prints the flush outcome in the same format for both unary and streaming paths.
+func printFlushResult(name string, success bool) {
+	if success {
+		fmt.Printf("Watcher %q flushed successfully.\n", name)
+	} else {
+		fmt.Printf("Watcher %q could not be flushed.\n", name)
+	}
 }
 
 func printFlushedWatchedFiles(files []*pb.WatchedFile, showPath bool) {

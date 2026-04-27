@@ -19,15 +19,19 @@ var flushCmd = &cobra.Command{
 	Short:   "Manage watcher flushes",
 }
 
-var flushShowPath bool
+var (
+	flushPendingShowPath bool
+	flushNoStream        bool
+)
 
 func init() {
+	pendingFilesCmd.Flags().BoolVarP(&flushPendingShowPath, "show-path", "p", false, "Show the full file path column in the output table")
+	runFlushCmd.Flags().BoolVar(&flushNoStream, "no-stream", false, "Use the unary RPC instead of the streaming RPC")
+
 	flushCmd.AddCommand(
 		pendingFilesCmd,
 		runFlushCmd,
 	)
-	pendingFilesCmd.Flags().BoolVarP(&flushShowPath, "show-path", "p", false, "Show the full file path column in the output table")
-	runFlushCmd.Flags().Bool("no-stream", false, "Use the unary RPC instead of the streaming RPC")
 }
 
 var pendingFilesCmd = &cobra.Command{
@@ -49,7 +53,7 @@ var pendingFilesCmd = &cobra.Command{
 			return nil
 		}
 
-		printFlushedWatchedFiles(resp.Files, flushShowPath)
+		printFlushedWatchedFiles(resp.Files, flushPendingShowPath)
 		return nil
 	},
 }
@@ -64,10 +68,9 @@ progress messages as they arrive.  Pass --no-stream to fall back to the
 unary RPC (FlushWatcher) for a single-response call.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		noStream, _ := cmd.Flags().GetBool("no-stream")
 		svc := pb.NewFileFlushServiceClient(conn)
 
-		if noStream {
+		if flushNoStream {
 			return runUnaryFlushWatcher(svc, args[0])
 		}
 		return runStreamFlushWatcher(svc, args[0])

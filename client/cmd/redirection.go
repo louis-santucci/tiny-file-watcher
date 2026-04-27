@@ -18,15 +18,22 @@ var redirectionCmd = &cobra.Command{
 	Short:   "Manage file redirections",
 }
 
+var (
+	createRedirectionTargetPath    string
+	createRedirectionTargetMachine string
+
+	updateRedirectionTargetPath string
+)
+
 func init() {
 	// create
-	createRedirectionCmd.Flags().StringP("path", "p", "", "Target path for the redirection (required)")
-	createRedirectionCmd.Flags().StringP("machine", "m", "", "Name of the machine where files will be written (required)")
-	_ = createRedirectionCmd.MarkFlagRequired("path")
-	_ = createRedirectionCmd.MarkFlagRequired("machine")
+	createRedirectionCmd.Flags().StringVarP(&createRedirectionTargetPath, "target-path", "p", "", "Target path where files will be written (required)")
+	_ = createRedirectionCmd.MarkFlagRequired("target-path")
+	createRedirectionCmd.Flags().StringVarP(&createRedirectionTargetMachine, "target-machine", "m", "", "Name of the machine where files will be written (required)")
+	_ = createRedirectionCmd.MarkFlagRequired("target-machine")
 
 	// update
-	updateRedirectionCmd.Flags().StringP("path", "p", "", "New target path for the redirection")
+	updateRedirectionCmd.Flags().StringVarP(&updateRedirectionTargetPath, "target-path", "p", "", "New target path for the redirection")
 
 	redirectionCmd.AddCommand(
 		getRedirectionCmd,
@@ -60,17 +67,14 @@ var createRedirectionCmd = &cobra.Command{
 	Short: "Create a new file redirection for a watcher",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		target, _ := cmd.Flags().GetString("path")
-		targetMachine, _ := cmd.Flags().GetString("machine")
-
 		svc := pb.NewFileRedirectionServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		r, err := svc.CreateFileRedirection(ctx, &pb.CreateFileRedirectionRequest{
 			WatcherName:       args[0],
-			TargetPath:        target,
-			TargetMachineName: targetMachine,
+			TargetPath:        createRedirectionTargetPath,
+			TargetMachineName: createRedirectionTargetMachine,
 		})
 		if err != nil {
 			return err
@@ -87,20 +91,18 @@ var updateRedirectionCmd = &cobra.Command{
 	Short: "Update a file redirection's target path",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		newTarget, _ := cmd.Flags().GetString("path")
-
-		if newTarget == "" {
-			return fmt.Errorf("--path must be provided")
-		}
-
-		req := &pb.UpdateFileRedirectionRequest{WatcherName: args[0]}
-		if newTarget != "" {
-			req.TargetPath = &newTarget
+		if updateRedirectionTargetPath == "" {
+			return fmt.Errorf("--target-path must be provided")
 		}
 
 		svc := pb.NewFileRedirectionServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+
+		req := &pb.UpdateFileRedirectionRequest{
+			WatcherName: args[0],
+			TargetPath:  &updateRedirectionTargetPath,
+		}
 
 		r, err := svc.UpdateFileRedirection(ctx, req)
 		if err != nil {

@@ -11,6 +11,8 @@ import (
 	pb "tiny-file-watcher/gen/grpc"
 )
 
+var syncNoStream bool
+
 var syncWatcherCmd = &cobra.Command{
 	Use:   "sync <name>",
 	Short: "Sync a watcher by scanning its source directory",
@@ -21,15 +23,17 @@ progress messages as they arrive.  Pass --no-stream to fall back to the
 unary RPC (SyncWatcher) for a single-response call.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		noStream, _ := cmd.Flags().GetBool("no-stream")
-
 		svc := pb.NewFileWatcherServiceClient(conn)
 
-		if noStream {
+		if syncNoStream {
 			return runUnarySyncWatcher(svc, args[0])
 		}
 		return runStreamSyncWatcher(svc, args[0])
 	},
+}
+
+func init() {
+	syncWatcherCmd.Flags().BoolVar(&syncNoStream, "no-stream", false, "Use the unary SyncWatcher RPC instead of the default streaming RPC")
 }
 
 // runUnarySyncWatcher calls the unary SyncWatcher RPC and prints the result.

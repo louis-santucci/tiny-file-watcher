@@ -19,26 +19,33 @@ var watcherCmd = &cobra.Command{
 	Short:   "Manage file watchers",
 }
 
-var watchedFilsShowPath bool
-var listWatchersMachine string
+var (
+	listWatcherFilesShowPath bool
+	listWatchersMachine      string
+
+	createWatcherPath          string
+	createWatcherMachine       string
+	createWatcherFlushExisting bool
+
+	updateWatcherName string
+	updateWatcherPath string
+)
 
 func init() {
 	// create
-	createWatcherCmd.Flags().StringP("path", "p", "", "Source path to watch (required)")
+	createWatcherCmd.Flags().StringVarP(&createWatcherPath, "path", "p", "", "Source path to watch (required)")
 	_ = createWatcherCmd.MarkFlagRequired("path")
-	createWatcherCmd.Flags().StringP("machine", "m", "", "Target machine name (required)")
+	createWatcherCmd.Flags().StringVarP(&createWatcherMachine, "machine", "m", "", "Target machine name (required)")
 	_ = createWatcherCmd.MarkFlagRequired("machine")
-	createWatcherCmd.Flags().Bool("flush-existing", false, "Add files already on disk as pending (to be flushed); by default they are recorded as already flushed")
+	createWatcherCmd.Flags().BoolVar(&createWatcherFlushExisting, "flush-existing", false, "Add files already on disk as pending (to be flushed); by default they are recorded as already flushed")
 
 	// update
-	updateWatcherCmd.Flags().String("name", "", "New name for the watcher")
-	updateWatcherCmd.Flags().String("path", "", "New source path for the watcher")
+	updateWatcherCmd.Flags().StringVarP(&updateWatcherName, "name", "n", "", "New name for the watcher")
+	updateWatcherCmd.Flags().StringVarP(&updateWatcherPath, "path", "p", "", "New source path for the watcher")
 
-	listWatcherFilesCmd.Flags().BoolVarP(&watchedFilsShowPath, "show-path", "p", false, "Show the full file path column in the output table")
+	// list
+	listWatcherFilesCmd.Flags().BoolVar(&listWatcherFilesShowPath, "show-path", false, "Show the full file path column in the output table")
 	listWatchersCmd.Flags().StringVarP(&listWatchersMachine, "machine", "m", "", "Filter watchers by machine name")
-
-	// sync
-	syncWatcherCmd.Flags().Bool("no-stream", false, "Use the unary SyncWatcher RPC instead of the default streaming RPC")
 
 	watcherCmd.AddCommand(
 		listWatcherFilesCmd,
@@ -65,7 +72,7 @@ var listWatcherFilesCmd = &cobra.Command{
 			return err
 		}
 
-		printWatchedFiles(resp.Files, watchedFilsShowPath)
+		printWatchedFiles(resp.Files, listWatcherFilesShowPath)
 		return nil
 	},
 }
@@ -117,19 +124,15 @@ var createWatcherCmd = &cobra.Command{
 	Short: "Create a new watcher",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		path, _ := cmd.Flags().GetString("path")
-		flushExisting, _ := cmd.Flags().GetBool("flush-existing")
-		machineName, _ := cmd.Flags().GetString("machine")
-
 		watcherSvc := pb.NewFileWatcherServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		w, err := watcherSvc.CreateWatcher(ctx, &pb.CreateWatcherRequest{
 			Name:          args[0],
-			SourcePath:    path,
-			FlushExisting: flushExisting,
-			MachineName:   machineName,
+			SourcePath:    createWatcherPath,
+			FlushExisting: createWatcherFlushExisting,
+			MachineName:   createWatcherMachine,
 		})
 		if err != nil {
 			return err
@@ -146,10 +149,7 @@ var updateWatcherCmd = &cobra.Command{
 	Short: "Update a watcher's name or path",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		newName, _ := cmd.Flags().GetString("name")
-		newPath, _ := cmd.Flags().GetString("path")
-
-		if newName == "" && newPath == "" {
+		if updateWatcherName == "" && updateWatcherPath == "" {
 			return fmt.Errorf("at least one of --name or --path must be provided")
 		}
 
@@ -164,11 +164,11 @@ var updateWatcherCmd = &cobra.Command{
 		}
 
 		req := &pb.UpdateWatcherRequest{Id: existing.Id}
-		if newName != "" {
-			req.Name = &newName
+		if updateWatcherName != "" {
+			req.Name = &updateWatcherName
 		}
-		if newPath != "" {
-			req.SourcePath = &newPath
+		if updateWatcherPath != "" {
+			req.SourcePath = &updateWatcherPath
 		}
 
 		w, err := svc.UpdateWatcher(ctx, req)

@@ -234,7 +234,8 @@ service FileWatcherService {
 }
 
 service FileFlushService {
-  rpc FlushWatcher(FlushWatcherRequest)         returns (stream FlushWatcherEvent);
+  rpc FlushWatcher(FlushWatcherRequest)         returns (FlushWatcherResponse);
+  rpc StreamFlushWatcher(FlushWatcherRequest)   returns (stream FlushWatcherEvent);
   rpc ListPendingFiles(ListPendingFilesRequest) returns (ListPendingFilesResponse);
 }
 

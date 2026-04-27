@@ -2,17 +2,16 @@ package flush
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"time"
 	"tiny-file-watcher/server/database"
 	tfwssh "tiny-file-watcher/server/ssh"
 
 	pb "tiny-file-watcher/gen/grpc"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -110,83 +109,41 @@ func NewFlushServiceWithDialer(flushRepository database.FlushRepository, dialer 
 	return &FlushService{flushRepository: flushRepository, dialer: dialer, logger: logger}
 }
 
-func (s *FlushService) FlushWatcher(_ context.Context, req *pb.FlushWatcherRequest) (*pb.FlushWatcherResponse, error) {
+func (s *FlushService) StreamFlushWatcher(req *pb.FlushWatcherRequest, stream grpc.ServerStreamingServer[pb.FlushWatcherEvent]) error {
 	if req.Name == "" {
-		return nil, status.Error(codes.InvalidArgument, "name is required")
+		return status.Error(codes.InvalidArgument, "name is required")
 	}
 
-	pendings, err := s.flushRepository.ListPendingFlushes(req.Name)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list pending flushes: %v", err)
-	}
-
-	if len(pendings) == 0 {
-		return &pb.FlushWatcherResponse{Success: true}, nil
-	}
-
-	// Pool SFTP clients keyed by machine name to avoid one handshake per file.
-	clients := make(map[string]SFTPClient)
-	defer func() {
-		for _, c := range clients {
-			c.Close()
-		}
-	}()
-
-	getClient := func(name, ip string, port int32, user, keyPath string) (SFTPClient, error) {
-		if c, ok := clients[name]; ok {
-			return c, nil
-		}
-		c, err := s.dialer.Dial(tfwssh.MachineConfig{
-			Name:              name,
-			IP:                ip,
-			SSHPort:           port,
-			SSHUser:           user,
-			SSHPrivateKeyPath: keyPath,
+	sendLog := func(msg string) error {
+		return stream.Send(&pb.FlushWatcherEvent{
+			Type:    pb.FlushWatcherEvent_LOG,
+			Message: msg,
 		})
-		if err != nil {
-			return nil, err
-		}
-		clients[name] = c
-		return c, nil
 	}
 
-	ids := make([]int64, 0, len(pendings))
-	for _, pf := range pendings {
-		srcClient, err := getClient(
-			pf.MachineName, pf.MachineIP, pf.MachineSSHPort,
-			pf.MachineSSHUser, pf.MachineSSHPrivateKeyPath,
-		)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "connect to source machine %s: %v", pf.MachineName, err)
-		}
+	logCallback := WithLogCallback(func(msg string) {
+		_ = sendLog(msg)
+	})
 
-		// Reuse the same client when source == target machine.
-		var dstClient SFTPClient
-		if pf.MachineName == pf.TargetMachineName {
-			dstClient = srcClient
-		} else {
-			dstClient, err = getClient(
-				pf.TargetMachineName, pf.TargetMachineIP, pf.TargetMachineSSHPort,
-				pf.TargetMachineSSHUser, pf.TargetMachineSSHPrivateKeyPath,
-			)
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "connect to target machine %s: %v", pf.TargetMachineName, err)
-			}
-		}
+	job := NewFlushJob(s.logger, s.flushRepository, &s.dialer, logCallback)
 
-		src := filepath.Join(pf.FilePath, pf.FileName)
-		dst := filepath.Join(pf.TargetPath, pf.FileName)
-		if err := transferFile(srcClient, dstClient, src, dst); err != nil {
-			return nil, status.Errorf(codes.Internal, "transfer file %s: %v", src, err)
-		}
-		ids = append(ids, pf.WatchedFileID)
+	result, err := job.Run()
+	if err != nil {
+		return status.Errorf(codes.Internal, "flush watcher: %v", err)
 	}
 
-	if err := s.flushRepository.FlushWatchedFiles(ids); err != nil {
-		return nil, status.Errorf(codes.Internal, "mark files flushed: %v", err)
+	if err := sendLog("flush job completed"); err != nil {
+		return status.Errorf(codes.Internal, "stream send: %v", err)
 	}
 
-	return &pb.FlushWatcherResponse{Success: true}, nil
+	if err := stream.Send(&pb.FlushWatcherEvent{
+		Type:   pb.FlushWatcherEvent_RESULT,
+		Result: &pb.FlushWatcherResponse{Success: result},
+	}); err != nil {
+		return status.Errorf(codes.Internal, "stream send: %v", err)
+	}
+
+	return nil
 }
 
 func (s *FlushService) ListPendingFiles(_ context.Context, req *pb.ListPendingFilesRequest) (*pb.ListPendingFilesResponse, error) {
@@ -213,44 +170,25 @@ func (s *FlushService) ListPendingFiles(_ context.Context, req *pb.ListPendingFi
 	return &pb.ListPendingFilesResponse{Files: files}, nil
 }
 
-// transferFile copies a file from src on srcClient to dst on dstClient,
-// preserving permissions and modification time.
-func transferFile(srcClient, dstClient SFTPClient, src, dst string) error {
-	srcInfo, err := srcClient.Stat(src)
+func (s *FlushService) FlushWatcher(_ context.Context, req *pb.FlushWatcherRequest) (*pb.FlushWatcherResponse, error) {
+	if req.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+
+	if req.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+
+	job := NewFlushJob(s.logger, s.flushRepository, &s.dialer)
+
+	result, err := job.Run()
 	if err != nil {
-		return fmt.Errorf("stat source: %w", err)
+		return &pb.FlushWatcherResponse{
+			Success: false,
+		}, status.Errorf(codes.Internal, "flush watcher: %v", err)
 	}
 
-	if err := dstClient.MkdirAll(filepath.Dir(dst)); err != nil {
-		return fmt.Errorf("mkdir destination: %w", err)
-	}
-
-	in, err := srcClient.Open(src)
-	if err != nil {
-		return fmt.Errorf("open source: %w", err)
-	}
-	defer in.Close()
-
-	out, err := dstClient.Create(dst)
-	if err != nil {
-		return fmt.Errorf("create destination: %w", err)
-	}
-	defer out.Close()
-
-	if _, err := io.Copy(out, in); err != nil {
-		return fmt.Errorf("copy data: %w", err)
-	}
-
-	if err := dstClient.Chmod(dst, srcInfo.Mode()); err != nil {
-		return fmt.Errorf("chmod destination: %w", err)
-	}
-
-	modTime := srcInfo.ModTime()
-	if err := dstClient.Chtimes(dst, modTime, modTime); err != nil {
-		return fmt.Errorf("chtimes destination: %w", err)
-	}
-
-	return nil
+	return &pb.FlushWatcherResponse{Success: result}, nil
 }
 
 // ensure FlushService satisfies the generated interface at compile time.

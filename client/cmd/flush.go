@@ -62,7 +62,7 @@ var runFlushCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		resp, err := svc.FlushWatcher(ctx, &pb.FlushWatcherRequest{Name: args[0]})
+		resp, err := svc.StreamFlushWatcher(ctx, &pb.FlushWatcherRequest{Name: args[0]})
 		if err != nil {
 			return err
 		}

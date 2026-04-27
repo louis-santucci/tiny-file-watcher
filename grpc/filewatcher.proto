@@ -19,9 +19,9 @@ message Watcher {
 message FileRedirection {
   string watcher_name = 1;
   string target_path = 2;
+  string target_machine_name = 3;
   google.protobuf.Timestamp created_at = 4;
   google.protobuf.Timestamp updated_at = 5;
-  string target_machine_name = 6;
 }
 
 // WatchedFile represents a file detected by an active watcher.
@@ -41,7 +41,7 @@ message GetFileRedirectionRequest {
 message CreateFileRedirectionRequest {
   string watcher_name = 1;
   string target_path = 2;
-  string target_machine_name = 4;
+  string target_machine_name = 3;
 }
 
 message UpdateFileRedirectionRequest {
@@ -164,6 +164,17 @@ message SyncWatcherEvent {
   optional SyncWatcherResponse result = 3; // populated only on RESULT events
 }
 
+message FlushWatcherEvent {
+  enum EventType {
+    LOG = 0;
+    RESULT = 1;
+  }
+
+  EventType type = 1;
+  string    message = 2; // human-readable text; populated on LOG events
+  optional FlushWatcherResponse result = 3; // populated only on RESULT events
+}
+
 message ListWatchedFilesRequest {
   string watcher_name = 1;
 }
@@ -223,7 +234,7 @@ service FileWatcherService {
 }
 
 service FileFlushService {
-  rpc FlushWatcher(FlushWatcherRequest)         returns (FlushWatcherResponse);
+  rpc FlushWatcher(FlushWatcherRequest)         returns (stream FlushWatcherEvent);
   rpc ListPendingFiles(ListPendingFilesRequest) returns (ListPendingFilesResponse);
 }
 

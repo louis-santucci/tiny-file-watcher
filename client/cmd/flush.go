@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"text/tabwriter"
 	"time"
@@ -66,11 +67,27 @@ var runFlushCmd = &cobra.Command{
 			return err
 		}
 
-		if resp.Success {
-			fmt.Printf("Watcher %q flushed successfully.\n", args[0])
-		} else {
-			fmt.Printf("Watcher %q could not be flushed.\n", args[0])
+		for {
+			event, err := resp.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return err
+			}
+
+			switch event.Type {
+			case pb.FlushWatcherEvent_LOG:
+				fmt.Printf("[flush] %s\n", event.Message)
+			case pb.FlushWatcherEvent_RESULT:
+				if r := event.Result; r != nil && r.Success {
+					fmt.Printf("Watcher %q flushed successfully.\n", args[0])
+				} else {
+					fmt.Printf("Watcher %q could not be flushed.\n", args[0])
+				}
+			}
 		}
+
 		return nil
 	},
 }

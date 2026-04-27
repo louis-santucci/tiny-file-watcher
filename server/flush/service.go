@@ -102,7 +102,7 @@ type FlushService struct {
 }
 
 func NewFlushService(flushRepository database.FlushRepository, logger *slog.Logger) *FlushService {
-	return &FlushService{flushRepository: flushRepository, dialer: sshDialer{}, logger: logger}
+	return NewFlushServiceWithDialer(flushRepository, sshDialer{}, logger)
 }
 
 // NewFlushServiceWithDialer creates a FlushService with a custom SFTPDialer (intended for tests).

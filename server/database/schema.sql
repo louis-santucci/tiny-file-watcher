@@ -1,7 +1,6 @@
 CREATE TABLE IF NOT EXISTS machines
 (
     id                      INTEGER PRIMARY KEY,
-    token                   TEXT UNIQUE NOT NULL,
     name                    TEXT UNIQUE NOT NULL,
     ip                      TEXT        NOT NULL,
     ssh_port                INTEGER     NOT NULL,

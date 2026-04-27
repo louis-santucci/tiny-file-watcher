@@ -67,17 +67,7 @@ func TestStreamSyncWatcher_MissingName_InvalidArgument(t *testing.T) {
 	svc := newService(&mocks.MockFileWatcherRepository{}, &mocks.MockFileRepository{}, &mocks.MockMachineRepository{})
 	stream := newStreamServer()
 
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "", Token: testToken}, stream)
-
-	assertCode(t, err, codes.InvalidArgument)
-	stream.AssertNotCalled(t, "Send", mock.Anything)
-}
-
-func TestStreamSyncWatcher_MissingToken_InvalidArgument(t *testing.T) {
-	svc := newService(&mocks.MockFileWatcherRepository{}, &mocks.MockFileRepository{}, &mocks.MockMachineRepository{})
-	stream := newStreamServer()
-
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: ""}, stream)
+	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: ""}, stream)
 
 	assertCode(t, err, codes.InvalidArgument)
 	stream.AssertNotCalled(t, "Send", mock.Anything)
@@ -92,39 +82,9 @@ func TestStreamSyncWatcher_WatcherNotFound_NotFound(t *testing.T) {
 
 	fileWatcherRepo.On("GetWatcherByName", "missing").Return(nil, errors.New("not found"))
 
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "missing", Token: testToken}, stream)
+	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "missing"}, stream)
 
 	assertCode(t, err, codes.NotFound)
-}
-
-func TestStreamSyncWatcher_UnknownToken_PermissionDenied(t *testing.T) {
-	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
-	machineRepo := &mocks.MockMachineRepository{}
-	svc := newService(fileWatcherRepo, &mocks.MockFileRepository{}, machineRepo)
-	stream := newStreamServer()
-
-	w := newWatcher(1, "w", "/tmp")
-	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
-	machineRepo.On("GetMachineByToken", "bad-token").Return(nil, errors.New("not found"))
-
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: "bad-token"}, stream)
-
-	assertCode(t, err, codes.PermissionDenied)
-}
-
-func TestStreamSyncWatcher_WrongMachine_PermissionDenied(t *testing.T) {
-	fileWatcherRepo := &mocks.MockFileWatcherRepository{}
-	machineRepo := &mocks.MockMachineRepository{}
-	svc := newService(fileWatcherRepo, &mocks.MockFileRepository{}, machineRepo)
-	stream := newStreamServer()
-
-	w := &database.FileWatcher{ID: 1, MachineName: "machine-A", Name: "w", SourcePath: "/tmp"}
-	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
-	machineRepo.On("GetMachineByToken", testToken).Return(&database.Machine{Name: "machine-B"}, nil)
-
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: testToken}, stream)
-
-	assertCode(t, err, codes.PermissionDenied)
 }
 
 // ── Event sequence ────────────────────────────────────────────────────────────
@@ -140,10 +100,10 @@ func TestStreamSyncWatcher_EmptyDir_SendsExpectedLogSequenceAndResult(t *testing
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
-	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
+	machineRepo.On("GetMachineByName", "test-machine").Return(newMachineForSync(), nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: testToken}, stream)
+	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w"}, stream)
 
 	assert.NoError(t, err)
 
@@ -185,11 +145,11 @@ func TestStreamSyncWatcher_NewFiles_ResultCarriesAddedCount(t *testing.T) {
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
-	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
+	machineRepo.On("GetMachineByName", "test-machine").Return(newMachineForSync(), nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 	txRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
 
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: testToken}, stream)
+	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w"}, stream)
 
 	assert.NoError(t, err)
 
@@ -214,13 +174,13 @@ func TestStreamSyncWatcher_RemovedFiles_ResultCarriesRemovedCount(t *testing.T) 
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
-	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
+	machineRepo.On("GetMachineByName", "test-machine").Return(newMachineForSync(), nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{
 		{ID: 1, WatcherName: "w", FilePath: ghost},
 	}, nil)
 	txRepo.On("BulkRemoveWatchedFiles", "w", mock.Anything).Return(nil)
 
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: testToken}, stream)
+	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w"}, stream)
 
 	assert.NoError(t, err)
 
@@ -245,11 +205,11 @@ func TestStreamSyncWatcher_SummaryLogMessage_MatchesResult(t *testing.T) {
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
-	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
+	machineRepo.On("GetMachineByName", "test-machine").Return(newMachineForSync(), nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 	txRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
 
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: testToken}, stream)
+	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w"}, stream)
 
 	assert.NoError(t, err)
 
@@ -278,11 +238,11 @@ func TestStreamSyncWatcher_ResultIsLastEvent(t *testing.T) {
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
-	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
+	machineRepo.On("GetMachineByName", "test-machine").Return(newMachineForSync(), nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 	txRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
 
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: testToken}, stream)
+	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w"}, stream)
 
 	assert.NoError(t, err)
 	assert.NotEmpty(t, stream.Sent)
@@ -301,10 +261,10 @@ func TestStreamSyncWatcher_OnlyOneResultEvent(t *testing.T) {
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
-	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
+	machineRepo.On("GetMachineByName", "test-machine").Return(newMachineForSync(), nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: testToken}, stream)
+	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w"}, stream)
 
 	assert.NoError(t, err)
 
@@ -342,10 +302,10 @@ func TestStreamSyncWatcher_SendError_OnSummaryLog_ReturnsError(t *testing.T) {
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
-	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
+	machineRepo.On("GetMachineByName", "test-machine").Return(newMachineForSync(), nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: testToken}, stream)
+	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w"}, stream)
 
 	// When the summary LOG send fails, StreamSyncWatcher must return an error.
 	assert.Error(t, err)
@@ -371,13 +331,13 @@ func TestStreamSyncWatcher_FilterApplied_IgnoredFilesExcludedFromResult(t *testi
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
-	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
+	machineRepo.On("GetMachineByName", "test-machine").Return(newMachineForSync(), nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
 		return files.Size() == 1
 	}), false).Return([]*database.WatchedFile{}, nil)
 
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: testToken}, stream)
+	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w"}, stream)
 
 	assert.NoError(t, err)
 	resultEvt := findResultEvent(stream.Sent)
@@ -388,9 +348,6 @@ func TestStreamSyncWatcher_FilterApplied_IgnoredFilesExcludedFromResult(t *testi
 
 // ── Parity with SyncWatcher ───────────────────────────────────────────────────
 
-// TestStreamSyncWatcher_ResultMatchesSyncWatcher ensures the RESULT event in
-// StreamSyncWatcher carries the same data as a direct SyncWatcher call for an
-// identical directory state.
 func TestStreamSyncWatcher_ResultMatchesSyncWatcher(t *testing.T) {
 	dir := t.TempDir()
 	RequireNoError(t, os.WriteFile(filepath.Join(dir, "data.csv"), []byte("x"), 0o644))
@@ -404,17 +361,17 @@ func TestStreamSyncWatcher_ResultMatchesSyncWatcher(t *testing.T) {
 	w := newWatcher(1, "w", dir)
 	machine := newMachineForSync()
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil).Times(2)
-	machineRepo.On("GetMachineByToken", testToken).Return(machine, nil).Times(2)
+	machineRepo.On("GetMachineByName", "test-machine").Return(machine, nil).Times(2)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil).Times(2)
 	txRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil).Times(2)
 
 	// Non-streaming call.
-	syncResp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w", Token: testToken})
+	syncResp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{Name: "w"})
 	assert.NoError(t, err)
 
 	// Streaming call.
 	stream := newStreamServer()
-	err = svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: testToken}, stream)
+	err = svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w"}, stream)
 	assert.NoError(t, err)
 	streamResult := findResultEvent(stream.Sent)
 
@@ -440,12 +397,12 @@ func TestStreamSyncWatcher_NewFilesAddedAsPending(t *testing.T) {
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
-	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
+	machineRepo.On("GetMachineByName", "test-machine").Return(newMachineForSync(), nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 	// StreamSyncWatcher always calls Run(false), so BulkAdd receives flushed=false.
 	txRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
 
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: testToken}, stream)
+	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w"}, stream)
 
 	assert.NoError(t, err)
 	txRepo.AssertExpectations(t)
@@ -453,10 +410,6 @@ func TestStreamSyncWatcher_NewFilesAddedAsPending(t *testing.T) {
 
 // ── watcher.WithSyncJobOptions interaction ────────────────────────────────────
 
-// TestStreamSyncWatcher_SyncJobOpts_Forwarded verifies that SyncJobOptions
-// injected via WithSyncJobOptions (e.g. WithRemoteFS) are forwarded to every
-// SyncJob created by StreamSyncWatcher.  Without WithRemoteFS the sync would
-// attempt an SSH dial; the test passes only if the option is honoured.
 func TestStreamSyncWatcher_SyncJobOpts_Forwarded(t *testing.T) {
 	dir := t.TempDir()
 	RequireNoError(t, os.WriteFile(filepath.Join(dir, "file.txt"), []byte("x"), 0o644))
@@ -467,8 +420,6 @@ func TestStreamSyncWatcher_SyncJobOpts_Forwarded(t *testing.T) {
 	txRepo := &mocks.MockTransactionalFileRepository{}
 
 	transactor := &mocks.PassthroughTransactor{Repo: txRepo}
-	// WithRemoteFS is the only SyncJobOption forwarded; without it the sync
-	// would try to SSH-dial and fail.
 	svc := watcher.NewManagerService(
 		fileWatcherRepo,
 		fileRepo,
@@ -481,11 +432,11 @@ func TestStreamSyncWatcher_SyncJobOpts_Forwarded(t *testing.T) {
 
 	w := newWatcher(1, "w", dir)
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
-	machineRepo.On("GetMachineByToken", testToken).Return(newMachineForSync(), nil)
+	machineRepo.On("GetMachineByName", "test-machine").Return(newMachineForSync(), nil)
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 	txRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
 
-	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w", Token: testToken}, stream)
+	err := svc.StreamSyncWatcher(&pb.SyncWatcherRequest{Name: "w"}, stream)
 
 	// If the SyncJobOption was not forwarded the call would return an SSH error.
 	assert.NoError(t, err)
@@ -496,13 +447,6 @@ func TestStreamSyncWatcher_SyncJobOpts_Forwarded(t *testing.T) {
 
 // ── lock ──────────────────────────────────────────────────────────────────────
 
-// TestStreamSyncWatcher_ConcurrentSync_AlreadyExists verifies that a second
-// StreamSyncWatcher call for the same watcher is rejected with AlreadyExists
-// while a first streaming sync is still in progress.
-//
-// The same channel-based blocking pattern used in the SyncWatcher lock test is
-// applied here: the first goroutine is held inside SyncJob.Run by a blocking
-// ListWatchedFiles mock; the second call must return AlreadyExists immediately.
 func TestStreamSyncWatcher_ConcurrentSync_AlreadyExists(t *testing.T) {
 	dir := t.TempDir()
 
@@ -519,7 +463,7 @@ func TestStreamSyncWatcher_ConcurrentSync_AlreadyExists(t *testing.T) {
 	entered := make(chan struct{})
 
 	fileWatcherRepo.On("GetWatcherByName", "w").Return(w, nil)
-	machineRepo.On("GetMachineByToken", testToken).Return(machine, nil)
+	machineRepo.On("GetMachineByName", "test-machine").Return(machine, nil)
 
 	// The first call blocks inside Run; the second call sees the lock is taken.
 	fileRepo.On("ListWatchedFiles", "w").
@@ -530,7 +474,7 @@ func TestStreamSyncWatcher_ConcurrentSync_AlreadyExists(t *testing.T) {
 		Return([]*database.WatchedFile{}, nil).Once()
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil).Maybe()
 
-	req := &pb.SyncWatcherRequest{Name: "w", Token: testToken}
+	req := &pb.SyncWatcherRequest{Name: "w"}
 
 	var wg sync.WaitGroup
 	wg.Add(1)

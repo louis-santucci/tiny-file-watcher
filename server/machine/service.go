@@ -28,9 +28,6 @@ func (s *MachineService) CreateMachine(_ context.Context, req *pb.InitializeMach
 	if req.Name == "" {
 		return nil, status.Error(codes.InvalidArgument, "name is required")
 	}
-	if req.Token == "" {
-		return nil, status.Error(codes.InvalidArgument, "token is required")
-	}
 	if req.Ip == "" {
 		return nil, status.Error(codes.InvalidArgument, "ip is required")
 	}
@@ -45,11 +42,11 @@ func (s *MachineService) CreateMachine(_ context.Context, req *pb.InitializeMach
 		sshPort = 22
 	}
 	fmt.Printf("Creating machine %q with IP %q, SSH port %d, SSH user %s, SSH private key path %s", req.Name, req.Ip, sshPort, req.SshUser, req.SshPrivateKey)
-	m, err := s.repo.CreateMachine(req.Name, req.Token, req.Ip, sshPort, req.SshUser, req.SshPrivateKey)
+	m, err := s.repo.CreateMachine(req.Name, req.Ip, sshPort, req.SshUser, req.SshPrivateKey)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create machine: %v", err)
 	}
-	s.logger.Info("machine created", "name", m.Name, "token", m.Token, "ip", m.IP, "ssh_port", m.SSHPort)
+	s.logger.Info("machine created", "name", m.Name, "ip", m.IP, "ssh_port", m.SSHPort)
 	return toProto(m), nil
 }
 
@@ -78,7 +75,6 @@ func (s *MachineService) DeleteMachine(_ context.Context, req *pb.DeleteMachineR
 
 func toProto(m *database.Machine) *pb.MachineResponse {
 	return &pb.MachineResponse{
-		Token:         m.Token,
 		SshUser:       m.SSHUser,
 		SshPrivateKey: m.SSHPrivateKeyPath,
 		Name:          m.Name,

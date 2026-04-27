@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	clientmachine "tiny-file-watcher/client/machine"
 	pb "tiny-file-watcher/gen/grpc"
 )
 
@@ -24,28 +23,22 @@ unary RPC (SyncWatcher) for a single-response call.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		noStream, _ := cmd.Flags().GetBool("no-stream")
 
-		token, err := clientmachine.LoadMachineToken()
-		if err != nil {
-			return fmt.Errorf("load machine token: %w", err)
-		}
-
 		svc := pb.NewFileWatcherServiceClient(conn)
 
 		if noStream {
-			return runUnarySyncWatcher(svc, args[0], token)
+			return runUnarySyncWatcher(svc, args[0])
 		}
-		return runStreamSyncWatcher(svc, args[0], token)
+		return runStreamSyncWatcher(svc, args[0])
 	},
 }
 
 // runUnarySyncWatcher calls the unary SyncWatcher RPC and prints the result.
-func runUnarySyncWatcher(svc pb.FileWatcherServiceClient, name, token string) error {
+func runUnarySyncWatcher(svc pb.FileWatcherServiceClient, name string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	resp, err := svc.SyncWatcher(ctx, &pb.SyncWatcherRequest{
-		Name:  name,
-		Token: token,
+		Name: name,
 	})
 	if err != nil {
 		return err
@@ -58,13 +51,12 @@ func runUnarySyncWatcher(svc pb.FileWatcherServiceClient, name, token string) er
 // runStreamSyncWatcher calls the server-streaming StreamSyncWatcher RPC,
 // prints LOG events as they arrive, and prints the final summary from the
 // RESULT event.
-func runStreamSyncWatcher(svc pb.FileWatcherServiceClient, name, token string) error {
+func runStreamSyncWatcher(svc pb.FileWatcherServiceClient, name string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	stream, err := svc.StreamSyncWatcher(ctx, &pb.SyncWatcherRequest{
-		Name:  name,
-		Token: token,
+		Name: name,
 	})
 	if err != nil {
 		return err

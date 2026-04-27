@@ -32,7 +32,7 @@ func newSyncJob(
 	opts ...watcher.SyncJobOption,
 ) *watcher.SyncJob {
 	w := &database.FileWatcher{ID: 1, Name: "w", SourcePath: dir, MachineName: "test-machine"}
-	machine := &database.Machine{ID: 1, Name: "test-machine", Token: "tok"}
+	machine := &database.Machine{ID: 1, Name: "test-machine"}
 	allOpts := append([]watcher.SyncJobOption{watcher.WithRemoteFS(watcher.LocalRemoteFS())}, opts...)
 	return watcher.NewSyncJob(
 		testutil.TestLogger(),

@@ -21,15 +21,7 @@ func TestHandleSync_Success(t *testing.T) {
 	watcherSvc := &mockWatcherService{}
 	machineSvc := &mockMachineService{}
 
-	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
-		Return(&pb.ListWatchersResponse{Watchers: []*pb.Watcher{
-			{Name: "alpha", MachineName: "machine-1"},
-		}}, nil)
-	machineSvc.On("GetMachines", mock.Anything, mock.Anything).
-		Return(&pb.GetMachinesResponse{Machines: []*pb.MachineResponse{
-			{Name: "machine-1", Token: "tok-abc"},
-		}}, nil)
-	watcherSvc.On("SyncWatcher", mock.Anything, &pb.SyncWatcherRequest{Name: "alpha", Token: "tok-abc"}).
+	watcherSvc.On("SyncWatcher", mock.Anything, &pb.SyncWatcherRequest{Name: "alpha"}).
 		Return(&pb.SyncWatcherResponse{AddedCount: 3, RemovedCount: 1}, nil)
 
 	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, machineSvc, OIDCConfig{}, "")
@@ -44,22 +36,13 @@ func TestHandleSync_Success(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "3")
 	assert.Contains(t, w.Body.String(), "1")
 	watcherSvc.AssertExpectations(t)
-	machineSvc.AssertExpectations(t)
 }
 
 func TestHandleSync_NothingChanged(t *testing.T) {
 	watcherSvc := &mockWatcherService{}
 	machineSvc := &mockMachineService{}
 
-	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
-		Return(&pb.ListWatchersResponse{Watchers: []*pb.Watcher{
-			{Name: "beta", MachineName: "machine-1"},
-		}}, nil)
-	machineSvc.On("GetMachines", mock.Anything, mock.Anything).
-		Return(&pb.GetMachinesResponse{Machines: []*pb.MachineResponse{
-			{Name: "machine-1", Token: "tok-abc"},
-		}}, nil)
-	watcherSvc.On("SyncWatcher", mock.Anything, &pb.SyncWatcherRequest{Name: "beta", Token: "tok-abc"}).
+	watcherSvc.On("SyncWatcher", mock.Anything, &pb.SyncWatcherRequest{Name: "beta"}).
 		Return(&pb.SyncWatcherResponse{AddedCount: 0, RemovedCount: 0}, nil)
 
 	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, machineSvc, OIDCConfig{}, "")
@@ -73,29 +56,11 @@ func TestHandleSync_NothingChanged(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "0")
 }
 
-func TestHandleSync_WatcherNotFound(t *testing.T) {
-	watcherSvc := &mockWatcherService{}
-	machineSvc := &mockMachineService{}
-
-	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
-		Return(&pb.ListWatchersResponse{Watchers: []*pb.Watcher{}}, nil)
-
-	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, machineSvc, OIDCConfig{}, "")
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, "/watchers/alpha/sync", nil)
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "watcher not found")
-}
-
 func TestHandleSync_ServiceError(t *testing.T) {
 	watcherSvc := &mockWatcherService{}
 	machineSvc := &mockMachineService{}
 
-	watcherSvc.On("ListWatchers", mock.Anything, mock.Anything).
+	watcherSvc.On("SyncWatcher", mock.Anything, mock.Anything).
 		Return(nil, errors.New("sync failed"))
 
 	h, err := New(watcherSvc, &mockFlushService{}, &mockRedirectionService{}, machineSvc, OIDCConfig{}, "")

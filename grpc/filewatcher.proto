@@ -147,7 +147,6 @@ message DeleteFilterResponse {
 
 message SyncWatcherRequest {
   string name = 1;
-  string token = 2;
 }
 
 message SyncWatcherResponse {
@@ -178,22 +177,20 @@ message ListWatchedFilesResponse {
 
 message InitializeMachineRequest {
   string name = 1;
-  string token = 2;
-  string ip = 3;
-  int32 ssh_port = 4;
-  string ssh_user = 5;
-  string ssh_private_key = 6;
+  string ip = 2;
+  int32 ssh_port = 3;
+  string ssh_user = 4;
+  string ssh_private_key = 5;
 }
 
 message MachineResponse {
-  string token = 1;
-  string name = 2;
-  google.protobuf.Timestamp created_at = 3;
-  google.protobuf.Timestamp updated_at = 4;
-  string ip = 5;
-  int32 ssh_port = 6;
-  string ssh_user = 7;
-  string ssh_private_key = 8;
+  string name = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  string ip = 4;
+  int32 ssh_port = 5;
+  string ssh_user = 6;
+  string ssh_private_key = 7;
 }
 
 message DeleteMachineResponse {

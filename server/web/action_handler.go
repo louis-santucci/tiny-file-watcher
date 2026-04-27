@@ -8,47 +8,10 @@ import (
 )
 
 // handleSync triggers a directory sync and returns an HTMX partial (watcher row).
-// It automatically resolves the machine token from the watcher's linked machine.
 func (h *Handler) handleSync(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 
-	// Look up the watcher to find its machine name.
-	watchersResp, err := h.watcherSvc.ListWatchers(r.Context(), &pb.ListWatchersRequest{})
-	if err != nil {
-		http.Error(w, "list watchers: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	var machineName string
-	for _, wt := range watchersResp.Watchers {
-		if wt.Name == name {
-			machineName = wt.MachineName
-			break
-		}
-	}
-	if machineName == "" {
-		http.Error(w, "watcher not found or has no linked machine", http.StatusBadRequest)
-		return
-	}
-
-	// Find the machine token.
-	machinesResp, err := h.machineSvc.GetMachines(r.Context(), &pb.EmptyRequest{})
-	if err != nil {
-		http.Error(w, "list machines: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	var token string
-	for _, m := range machinesResp.Machines {
-		if m.Name == machineName {
-			token = m.Token
-			break
-		}
-	}
-	if token == "" {
-		http.Error(w, "machine token not found for: "+machineName, http.StatusBadRequest)
-		return
-	}
-
-	result, err := h.watcherSvc.SyncWatcher(r.Context(), &pb.SyncWatcherRequest{Name: name, Token: token})
+	result, err := h.watcherSvc.SyncWatcher(r.Context(), &pb.SyncWatcherRequest{Name: name})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

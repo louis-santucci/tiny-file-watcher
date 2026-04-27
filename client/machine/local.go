@@ -13,19 +13,18 @@ import (
 var ErrNotInitialized = errors.New("machine not initialized: run 'tfw machine create <name>' first")
 
 type machineState struct {
-	Name  string `json:"name"`
-	Token string `json:"token"`
+	Name string `json:"name"`
 }
 
 var machinePath = internal.MachinePath
 
-// SaveMachineState persists the local machine name and token to ~/.tfw/machine.json.
-func SaveMachineState(name, token string) error {
+// SaveMachineState persists the local machine name to ~/.tfw/machine.json.
+func SaveMachineState(name string) error {
 	path := machinePath()
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
-	data, err := json.Marshal(machineState{Name: name, Token: token})
+	data, err := json.Marshal(machineState{Name: name})
 	if err != nil {
 		return fmt.Errorf("marshal machine state: %w", err)
 	}
@@ -43,19 +42,6 @@ func LoadMachineName() (string, error) {
 		return "", ErrNotInitialized
 	}
 	return state.Name, nil
-}
-
-// LoadMachineToken reads the locally stored machine token.
-// Returns ErrNotInitialized if the file is absent or the token is empty.
-func LoadMachineToken() (string, error) {
-	state, err := loadState()
-	if err != nil {
-		return "", err
-	}
-	if state.Token == "" {
-		return "", ErrNotInitialized
-	}
-	return state.Token, nil
 }
 
 // ClearMachineState removes the locally stored machine state (~/.tfw/machine.json).

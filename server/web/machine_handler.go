@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/google/uuid"
-
 	pb "tiny-file-watcher/gen/grpc"
 )
 
@@ -95,11 +93,8 @@ func (h *Handler) handleMachineCreate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	token := uuid.New().String()
-
 	_, err := h.machineSvc.CreateMachine(r.Context(), &pb.InitializeMachineRequest{
 		Name:          name,
-		Token:         token,
 		Ip:            ip,
 		SshPort:       sshPort,
 		SshUser:       sshUser,

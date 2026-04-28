@@ -11,6 +11,8 @@ release.properties
 tfw
 tfws
 
+.hermes/
+
 gen/
 
 **/*.db

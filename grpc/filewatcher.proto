@@ -209,6 +209,14 @@ message DeleteMachineRequest {
   string name = 1;
 }
 
+message UpdateMachineRequest {
+  string name = 1;
+  optional string ip = 2;
+  optional int32 ssh_port = 3;
+  optional string ssh_user = 4;
+  optional string ssh_private_key = 5;
+}
+
 message GetMachinesResponse {
   repeated MachineResponse machines = 1;
 }
@@ -218,6 +226,7 @@ message EmptyRequest {}
 service MachineService {
   rpc CreateMachine(InitializeMachineRequest) returns (MachineResponse);
   rpc GetMachines(EmptyRequest)               returns (GetMachinesResponse);
+  rpc UpdateMachine(UpdateMachineRequest)     returns (MachineResponse);
   rpc DeleteMachine(DeleteMachineRequest)     returns (DeleteMachineResponse);
 }
 

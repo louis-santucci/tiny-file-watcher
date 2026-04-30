@@ -62,6 +62,19 @@ func (s *MachineService) GetMachines(_ context.Context, _ *pb.EmptyRequest) (*pb
 	return resp, nil
 }
 
+func (s *MachineService) UpdateMachine(_ context.Context, req *pb.UpdateMachineRequest) (*pb.MachineResponse, error) {
+	if req.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+	updated, err := s.repo.UpdateMachine(req.Name, req.Ip, req.SshPort, req.SshUser, req.SshPrivateKey)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "update machine: %v", err)
+	}
+	s.logger.Info("machine updated", "name", req.Name)
+
+	return toProto(updated), nil
+}
+
 func (s *MachineService) DeleteMachine(_ context.Context, req *pb.DeleteMachineRequest) (*pb.DeleteMachineResponse, error) {
 	if req.Name == "" {
 		return nil, status.Error(codes.InvalidArgument, "name is required")

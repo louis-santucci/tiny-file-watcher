@@ -5,6 +5,7 @@ type MachineRepository interface {
 	CreateMachine(name string, ip string, sshPort int32, sshUser string, sshPrivateKeyPath string) (*Machine, error)
 	GetMachineByName(name string) (*Machine, error)
 	ListMachines() ([]*Machine, error)
+	UpdateMachine(name string, ip string, sshPort int32, sshUser string, sshPrivateKeyPath string) (*Machine, error)
 	DeleteMachine(name string) error
 }
 

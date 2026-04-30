@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -63,6 +64,55 @@ func (db *DB) ListMachines() ([]*Machine, error) {
 func (db *DB) DeleteMachine(name string) error {
 	_, err := db.conn.Exec(`DELETE FROM machines WHERE name = ?`, name)
 	return err
+}
+
+// UpdateMachine updates an existing machine. If all parameters are nil, return the existing machine, else update the machine in db and returns the updated machine.
+func (db *DB) UpdateMachine(name string, ip *string, sshPort *int32, sshUser *string, sshPrivateKeyPath *string) (*Machine, error) {
+	if ip == nil && sshPort == nil && sshUser == nil && sshPrivateKeyPath == nil {
+		return db.GetMachineByName(name)
+	}
+
+	now := time.Now().UTC()
+	setClauses := make([]string, 0)
+	args := []any{}
+
+	if ip != nil {
+		setClauses = append(setClauses, "name=?")
+		args = append(args, *ip)
+	}
+	if sshPort != nil {
+		setClauses = append(setClauses, "ssh_port=?")
+		args = append(args, *sshPort)
+	}
+	if sshUser != nil {
+		setClauses = append(setClauses, "ssh_user=?")
+		args = append(args, *sshUser)
+	}
+	if sshPrivateKeyPath != nil {
+		setClauses = append(setClauses, "ssh_private_key_path=?")
+		args = append(args, *sshPrivateKeyPath)
+	}
+	if sshUser != nil {
+		setClauses = append(setClauses, "ssh_user=?")
+		args = append(args, *sshUser)
+	}
+	if sshPrivateKeyPath != nil {
+		setClauses = append(setClauses, "ssh_private_key_path=?")
+		args = append(args, *sshPrivateKeyPath)
+	}
+	setClauses = append(setClauses, "updated_at=?")
+	args = append(args, now.Format(time.RFC3339))
+	args = append(args, name) // WHERE name=?
+
+	query := fmt.Sprintf("UPDATE machines SET %s WHERE name=?", strings.Join(setClauses, ", "))
+	res, err := db.conn.Exec(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("update machine: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return nil, fmt.Errorf("machine not found")
+	}
+	return db.GetMachineByName(name)
 }
 
 func scanMachine(s scanner) (*Machine, error) {

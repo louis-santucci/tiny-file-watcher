@@ -35,6 +35,14 @@ func (m *MockMachineRepository) ListMachines() ([]*database.Machine, error) {
 	return nil, args.Error(1)
 }
 
+func (m *MockMachineRepository) UpdateMachine(name string, ip *string, sshPort *int32, sshUser *string, sshPrivateKeyPath *string) (*database.Machine, error) {
+	args := m.Called(name, ip, sshPort, sshUser, sshPrivateKeyPath)
+	if v := args.Get(0); v != nil {
+		return v.(*database.Machine), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockMachineRepository) DeleteMachine(name string) error {
 	args := m.Called(name)
 	return args.Error(0)

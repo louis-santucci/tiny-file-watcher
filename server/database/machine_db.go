@@ -77,16 +77,12 @@ func (db *DB) UpdateMachine(name string, ip *string, sshPort *int32, sshUser *st
 	args := []any{}
 
 	if ip != nil {
-		setClauses = append(setClauses, "name=?")
+		setClauses = append(setClauses, "ip=?")
 		args = append(args, *ip)
 	}
 	if sshPort != nil {
 		setClauses = append(setClauses, "ssh_port=?")
 		args = append(args, *sshPort)
-	}
-	if sshUser != nil {
-		setClauses = append(setClauses, "ssh_user=?")
-		args = append(args, *sshUser)
 	}
 	if sshPrivateKeyPath != nil {
 		setClauses = append(setClauses, "ssh_private_key_path=?")

@@ -19,22 +19,69 @@ var machineCmd = &cobra.Command{
 }
 
 var (
-	createMachineIP         string
-	createMachineSSHPort    int32
-	createMachineSSHUser    string
-	createMachineSSHKeyPath string
+	machineIP         string
+	machineSSHPort    int32
+	machineSSHUser    string
+	machineSSHKeyPath string
 )
 
 func init() {
-	createMachineCmd.Flags().StringVar(&createMachineIP, "ip", "", "IP address of the machine (required)")
-	createMachineCmd.Flags().Int32Var(&createMachineSSHPort, "ssh-port", 22, "SSH port of the machine")
-	createMachineCmd.Flags().StringVar(&createMachineSSHUser, "ssh-user", "", "SSH user for the machine (required)")
-	createMachineCmd.Flags().StringVar(&createMachineSSHKeyPath, "ssh-key", "", "Full path to the SSH private key file on this machine, e.g. /home/user/.ssh/id_ed25519 (required)")
+	createMachineCmd.Flags().StringVar(&machineIP, "ip", "", "IP address of the machine (required)")
+	createMachineCmd.Flags().Int32Var(&machineSSHPort, "ssh-port", 22, "SSH port of the machine")
+	createMachineCmd.Flags().StringVar(&machineSSHUser, "ssh-user", "", "SSH user for the machine (required)")
+	createMachineCmd.Flags().StringVar(&machineSSHKeyPath, "ssh-key", "", "Full path to the SSH private key file on this machine, e.g. /home/user/.ssh/id_ed25519 (required)")
 	_ = createMachineCmd.MarkFlagRequired("ip")
 	_ = createMachineCmd.MarkFlagRequired("ssh-user")
 	_ = createMachineCmd.MarkFlagRequired("ssh-key")
+	updateMachineCmd.Flags().StringVar(&machineIP, "ip", "", "New IP address of the machine")
+	updateMachineCmd.Flags().Int32Var(&machineSSHPort, "ssh-port", 0, "New SSH port of the machine")
+	updateMachineCmd.Flags().StringVar(&machineSSHUser, "ssh-user", "", "New SSH user for the machine")
+	updateMachineCmd.Flags().StringVar(&machineSSHKeyPath, "ssh-key", "", "New full path to the SSH private key file on this machine, e.g. /home/user/.ssh/id_ed25519")
 
-	machineCmd.AddCommand(createMachineCmd, listMachinesCmd, deleteMachineCmd)
+	machineCmd.AddCommand(createMachineCmd, listMachinesCmd, deleteMachineCmd, updateMachineCmd)
+}
+
+var updateMachineCmd = &cobra.Command{
+	Use:   "update <name>",
+	Short: "Update an existing machine",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		svc := pb.NewMachineServiceClient(conn)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		fmt.Printf("Updating machine %s\n", args[0])
+
+		var ip, sshUser, sshKeyPath *string = nil, nil, nil
+		var sshPort *int32 = nil
+
+		if machineIP != "" {
+			ip = &machineIP
+		}
+		if machineSSHPort != 0 {
+			sshPort = &machineSSHPort
+		}
+		if machineSSHUser != "" {
+			sshUser = &machineSSHUser
+		}
+		if machineSSHKeyPath != "" {
+			sshKeyPath = &machineSSHKeyPath
+		}
+
+		resp, err := svc.UpdateMachine(ctx, &pb.UpdateMachineRequest{
+			Name:          args[0],
+			Ip:            ip,
+			SshUser:       sshUser,
+			SshPrivateKey: sshKeyPath,
+			SshPort:       sshPort,
+		})
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Machine %q updated (ip: %s, ssh-port: %d, ssh-user: %s)\n", resp.Name, resp.Ip, resp.SshPort, resp.SshUser)
+		return nil
+	},
 }
 
 var createMachineCmd = &cobra.Command{
@@ -51,20 +98,20 @@ The path is stored on the server and used for future SSH connections to this mac
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		fmt.Printf("Creating machine %q with IP %q, SSH port %d, SSH user %q...\n", args[0], createMachineIP, createMachineSSHPort, createMachineSSHUser)
-		fmt.Printf("Using SSH key %q\n", createMachineSSHKeyPath)
+		fmt.Printf("Creating machine %q with IP %q, SSH port %d, SSH user %q...\n", args[0], machineIP, machineSSHPort, machineSSHUser)
+		fmt.Printf("Using SSH key %q\n", machineSSHKeyPath)
 		resp, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{
 			Name:          args[0],
-			Ip:            createMachineIP,
-			SshPort:       createMachineSSHPort,
-			SshUser:       createMachineSSHUser,
-			SshPrivateKey: createMachineSSHKeyPath,
+			Ip:            machineIP,
+			SshPort:       machineSSHPort,
+			SshUser:       machineSSHUser,
+			SshPrivateKey: machineSSHKeyPath,
 		})
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Machine %q created (ip: %s, ssh-port: %d, ssh-user: %s)\n", resp.Name, resp.Ip, resp.SshPort, createMachineSSHUser)
+		fmt.Printf("Machine %q created (ip: %s, ssh-port: %d, ssh-user: %s)\n", resp.Name, resp.Ip, resp.SshPort, machineSSHUser)
 		return nil
 	},
 }

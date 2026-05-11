@@ -22,7 +22,7 @@ import (
 var ctx = context.Background()
 
 func newService(repo *mocks.MockFlushRepository) *flush.FlushService {
-	return flush.NewFlushService(repo, testutil.TestLogger())
+	return flush.NewFlushServiceWithDialer(repo, flush.LocalDialer(), testutil.TestLogger())
 }
 
 func assertCode(t *testing.T, err error, want codes.Code) {
@@ -30,6 +30,20 @@ func assertCode(t *testing.T, err error, want codes.Code) {
 	s, ok := status.FromError(err)
 	assert.True(t, ok, "expected a gRPC status error")
 	assert.Equal(t, want, s.Code())
+}
+
+// pendingFlush builds a PendingFlush with placeholder machine fields pointing
+// to the same (source == target) logical machine so the local dialer is used.
+func pendingFlush(id int64, watcherName, filePath, fileName, targetPath string) *database.PendingFlush {
+	return &database.PendingFlush{
+		WatchedFileID:     id,
+		WatcherName:       watcherName,
+		FilePath:          filePath,
+		FileName:          fileName,
+		TargetPath:        targetPath,
+		MachineName:       "local",
+		TargetMachineName: "local", // same machine → reuse client
+	}
 }
 
 // ── FlushWatcher ──────────────────────────────────────────────────────────────
@@ -78,7 +92,7 @@ func TestFlushWatcher_OK(t *testing.T) {
 	assert.NoError(t, os.WriteFile(srcFile, []byte("hello"), 0o644))
 
 	pendings := []*database.PendingFlush{
-		{WatchedFileID: 1, WatcherName: "my-watcher", FilePath: srcDir, FileName: "hello.txt", TargetPath: dstDir},
+		pendingFlush(1, "my-watcher", srcDir, "hello.txt", dstDir),
 	}
 	repo.On("ListPendingFlushes", "my-watcher").Return(pendings, nil)
 	repo.On("FlushWatchedFiles", []int64{1}).Return(nil)
@@ -104,7 +118,7 @@ func TestFlushWatcher_FlushWatchedFiles_Error(t *testing.T) {
 	assert.NoError(t, os.WriteFile(srcFile, []byte("data"), 0o644))
 
 	pendings := []*database.PendingFlush{
-		{WatchedFileID: 2, WatcherName: "my-watcher", FilePath: srcDir, FileName: "file.txt", TargetPath: dstDir},
+		pendingFlush(2, "my-watcher", srcDir, "file.txt", dstDir),
 	}
 	repo.On("ListPendingFlushes", "my-watcher").Return(pendings, nil)
 	repo.On("FlushWatchedFiles", []int64{2}).Return(errors.New("db error"))
@@ -121,7 +135,7 @@ func TestFlushWatcher_CopyFile_SourceMissing(t *testing.T) {
 
 	dstDir := t.TempDir()
 	pendings := []*database.PendingFlush{
-		{WatchedFileID: 3, WatcherName: "my-watcher", FilePath: "/nonexistent", FileName: "file.txt", TargetPath: dstDir},
+		pendingFlush(3, "my-watcher", "/nonexistent", "file.txt", dstDir),
 	}
 	repo.On("ListPendingFlushes", "my-watcher").Return(pendings, nil)
 

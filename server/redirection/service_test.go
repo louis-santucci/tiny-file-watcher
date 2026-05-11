@@ -13,6 +13,7 @@ import (
 	"tiny-file-watcher/server/test/testutil"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -22,21 +23,24 @@ var (
 	fixedAt = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 )
 
-func newRedirection(watcherName, targetPath string, autoFlush bool) *database.FileRedirection {
+func newRedirection(watcherName, targetPath string) *database.FileRedirection {
 	return &database.FileRedirection{
-		WatcherName: watcherName,
-		TargetPath:  targetPath,
-		AutoFlush:   autoFlush,
-		CreatedAt:   fixedAt,
-		UpdatedAt:   fixedAt,
+		WatcherName:       watcherName,
+		TargetPath:        targetPath,
+		TargetMachineName: "my-machine",
+		CreatedAt:         fixedAt,
+		UpdatedAt:         fixedAt,
 	}
 }
 
 func newService(repo *mocks.MockRedirectionRepository) *redirection.RedirectionService {
+	machineRepo := &mocks.MockMachineRepository{}
+	machineRepo.On("GetMachineByName", mock.AnythingOfType("string")).Return(&database.Machine{Name: "my-machine"}, nil)
 	return redirection.NewRedirectionService(
 		&mocks.MockFileWatcherRepository{},
 		&mocks.MockFileRepository{},
 		repo,
+		machineRepo,
 		testutil.TestLogger(),
 	)
 }
@@ -54,19 +58,19 @@ func TestAddRedirection_OK(t *testing.T) {
 	repo := &mocks.MockRedirectionRepository{}
 	svc := newService(repo)
 
-	r := newRedirection("my-watcher", "/tmp/out", true)
-	repo.On("AddRedirection", "my-watcher", "/tmp/out", true).Return(r, nil)
+	r := newRedirection("my-watcher", "/tmp/out")
+	repo.On("AddRedirection", "my-watcher", "/tmp/out", "my-machine").Return(r, nil)
 
 	resp, err := svc.CreateFileRedirection(ctx, &pb.CreateFileRedirectionRequest{
-		WatcherName: "my-watcher",
-		TargetPath:  "/tmp/out",
-		AutoFlush:   true,
+		WatcherName:       "my-watcher",
+		TargetPath:        "/tmp/out",
+		TargetMachineName: "my-machine",
 	})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "my-watcher", resp.WatcherName)
 	assert.Equal(t, "/tmp/out", resp.TargetPath)
-	assert.True(t, resp.AutoFlush)
+	assert.Equal(t, "my-machine", resp.TargetMachineName)
 	repo.AssertExpectations(t)
 }
 
@@ -96,11 +100,12 @@ func TestAddRedirection_RepositoryError(t *testing.T) {
 	repo := &mocks.MockRedirectionRepository{}
 	svc := newService(repo)
 
-	repo.On("AddRedirection", "my-watcher", "/tmp/out", false).Return(nil, errors.New("db error"))
+	repo.On("AddRedirection", "my-watcher", "/tmp/out", "my-machine").Return(nil, errors.New("db error"))
 
 	_, err := svc.CreateFileRedirection(ctx, &pb.CreateFileRedirectionRequest{
-		WatcherName: "my-watcher",
-		TargetPath:  "/tmp/out",
+		WatcherName:       "my-watcher",
+		TargetPath:        "/tmp/out",
+		TargetMachineName: "my-machine",
 	})
 
 	assertCode(t, err, codes.Internal)
@@ -113,7 +118,7 @@ func TestGetRedirection_OK(t *testing.T) {
 	repo := &mocks.MockRedirectionRepository{}
 	svc := newService(repo)
 
-	r := newRedirection("my-watcher", "/tmp/out", false)
+	r := newRedirection("my-watcher", "/tmp/out")
 	repo.On("GetRedirection", "my-watcher").Return(r, nil)
 
 	resp, err := svc.GetFileRedirection(ctx, &pb.GetFileRedirectionRequest{Name: "my-watcher"})
@@ -143,8 +148,8 @@ func TestUpdateFileRedirection_OK(t *testing.T) {
 	svc := newService(repo)
 
 	newPath := "/tmp/new-out"
-	r := newRedirection("my-watcher", newPath, true)
-	repo.On("UpdateRedirection", "my-watcher", &newPath, (*bool)(nil)).Return(r, nil)
+	r := newRedirection("my-watcher", newPath)
+	repo.On("UpdateRedirection", "my-watcher", &newPath).Return(r, nil)
 
 	resp, err := svc.UpdateFileRedirection(ctx, &pb.UpdateFileRedirectionRequest{
 		WatcherName: "my-watcher",
@@ -159,7 +164,7 @@ func TestUpdateFileRedirection_OK(t *testing.T) {
 func TestUpdateFileRedirection_MissingParameters(t *testing.T) {
 	svc := newService(&mocks.MockRedirectionRepository{})
 
-	_, err := svc.UpdateFileRedirection(ctx, &pb.UpdateFileRedirectionRequest{WatcherName: "my-watcher", TargetPath: nil, AutoFlush: nil})
+	_, err := svc.UpdateFileRedirection(ctx, &pb.UpdateFileRedirectionRequest{WatcherName: "my-watcher", TargetPath: nil})
 
 	assertCode(t, err, codes.InvalidArgument)
 }
@@ -192,7 +197,7 @@ func TestUpdateFileRedirection_RepositoryError(t *testing.T) {
 	svc := newService(repo)
 
 	newPath := "/tmp/new-out"
-	repo.On("UpdateRedirection", "my-watcher", &newPath, (*bool)(nil)).Return(nil, errors.New("db error"))
+	repo.On("UpdateRedirection", "my-watcher", &newPath).Return(nil, errors.New("db error"))
 
 	_, err := svc.UpdateFileRedirection(ctx, &pb.UpdateFileRedirectionRequest{
 		WatcherName: "my-watcher",

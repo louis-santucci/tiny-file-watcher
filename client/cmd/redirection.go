@@ -18,15 +18,22 @@ var redirectionCmd = &cobra.Command{
 	Short:   "Manage file redirections",
 }
 
+var (
+	createRedirectionTargetPath    string
+	createRedirectionTargetMachine string
+
+	updateRedirectionTargetPath string
+)
+
 func init() {
 	// create
-	createRedirectionCmd.Flags().StringP("target", "t", "", "Target path for the redirection (required)")
-	createRedirectionCmd.Flags().Bool("auto-flush", false, "Enable auto-flush on redirection")
-	_ = createRedirectionCmd.MarkFlagRequired("target")
+	createRedirectionCmd.Flags().StringVarP(&createRedirectionTargetPath, "target-path", "p", "", "Target path where files will be written (required)")
+	_ = createRedirectionCmd.MarkFlagRequired("target-path")
+	createRedirectionCmd.Flags().StringVarP(&createRedirectionTargetMachine, "target-machine", "m", "", "Name of the machine where files will be written (required)")
+	_ = createRedirectionCmd.MarkFlagRequired("target-machine")
 
 	// update
-	updateRedirectionCmd.Flags().String("target", "", "New target path for the redirection")
-	updateRedirectionCmd.Flags().String("auto-flush", "", "Enable or disable auto-flush (true/false)")
+	updateRedirectionCmd.Flags().StringVarP(&updateRedirectionTargetPath, "target-path", "p", "", "New target path for the redirection")
 
 	redirectionCmd.AddCommand(
 		getRedirectionCmd,
@@ -60,17 +67,14 @@ var createRedirectionCmd = &cobra.Command{
 	Short: "Create a new file redirection for a watcher",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		target, _ := cmd.Flags().GetString("target")
-		autoFlush, _ := cmd.Flags().GetBool("auto-flush")
-
 		svc := pb.NewFileRedirectionServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		r, err := svc.CreateFileRedirection(ctx, &pb.CreateFileRedirectionRequest{
-			WatcherName: args[0],
-			TargetPath:  target,
-			AutoFlush:   autoFlush,
+			WatcherName:       args[0],
+			TargetPath:        createRedirectionTargetPath,
+			TargetMachineName: createRedirectionTargetMachine,
 		})
 		if err != nil {
 			return err
@@ -84,36 +88,21 @@ var createRedirectionCmd = &cobra.Command{
 
 var updateRedirectionCmd = &cobra.Command{
 	Use:   "update <watcher-name>",
-	Short: "Update a file redirection's target path or auto-flush setting",
+	Short: "Update a file redirection's target path",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		newTarget, _ := cmd.Flags().GetString("target")
-		autoFlushStr, _ := cmd.Flags().GetString("auto-flush")
-
-		if newTarget == "" && autoFlushStr == "" {
-			return fmt.Errorf("at least one of --target or --auto-flush must be provided")
-		}
-
-		req := &pb.UpdateFileRedirectionRequest{WatcherName: args[0]}
-		if newTarget != "" {
-			req.TargetPath = &newTarget
-		}
-		if autoFlushStr != "" {
-			switch autoFlushStr {
-			case "true":
-				v := true
-				req.AutoFlush = &v
-			case "false":
-				v := false
-				req.AutoFlush = &v
-			default:
-				return fmt.Errorf("--auto-flush must be true or false")
-			}
+		if updateRedirectionTargetPath == "" {
+			return fmt.Errorf("--target-path must be provided")
 		}
 
 		svc := pb.NewFileRedirectionServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+
+		req := &pb.UpdateFileRedirectionRequest{
+			WatcherName: args[0],
+			TargetPath:  &updateRedirectionTargetPath,
+		}
 
 		r, err := svc.UpdateFileRedirection(ctx, req)
 		if err != nil {
@@ -151,17 +140,17 @@ var deleteRedirectionCmd = &cobra.Command{
 
 func printRedirections(redirections []*pb.FileRedirection) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "WATCHER\tTARGET PATH\tAUTO FLUSH\tCREATED AT")
-	fmt.Fprintln(w, "-------\t-----------\t----------\t----------")
+	fmt.Fprintln(w, "WATCHER\tTARGET MACHINE\tTARGET PATH\tCREATED AT")
+	fmt.Fprintln(w, "-------\t--------------\t-----------\t----------")
 	for _, r := range redirections {
 		created := "-"
 		if r.CreatedAt != nil {
 			created = r.CreatedAt.AsTime().Format(time.DateTime)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%v\t%s\n",
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 			r.WatcherName,
+			r.TargetMachineName,
 			r.TargetPath,
-			r.AutoFlush,
 			created,
 		)
 	}

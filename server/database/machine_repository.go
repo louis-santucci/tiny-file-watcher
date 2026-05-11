@@ -2,10 +2,10 @@ package database
 
 // MachineRepository defines persistence operations for Machine entities.
 type MachineRepository interface {
-	CreateMachine(name string, token string, ip string, sshPort int32, sshUser string, sshPrivateKeyPath string) (*Machine, error)
+	CreateMachine(name string, ip string, sshPort int32, sshUser string, sshPrivateKeyPath string) (*Machine, error)
 	GetMachineByName(name string) (*Machine, error)
-	GetMachineByToken(token string) (*Machine, error)
 	ListMachines() ([]*Machine, error)
+	UpdateMachine(name string, ip *string, sshPort *int32, sshUser *string, sshPrivateKeyPath *string) (*Machine, error)
 	DeleteMachine(name string) error
 }
 

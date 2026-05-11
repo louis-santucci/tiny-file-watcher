@@ -21,7 +21,6 @@ type WatcherService struct {
 	fileWatcherRepository database.FileWatcherRepository
 	fileRepository        database.FileRepository
 	machineRepository     database.MachineRepository
-	transactor            database.Transactor
 	logger                *slog.Logger
 	// syncJobOpts are forwarded to every SyncJob created by this service.
 	// Used in tests to inject a local RemoteFS and bypass SSH.
@@ -43,13 +42,12 @@ func WithSyncJobOptions(opts ...SyncJobOption) WatcherServiceOption {
 	}
 }
 
-func NewManagerService(fileWatcherRepository database.FileWatcherRepository, fileRepository database.FileRepository, machineRepository database.MachineRepository, logger *slog.Logger, transactor database.Transactor, opts ...WatcherServiceOption) *WatcherService {
+func NewManagerService(fileWatcherRepository database.FileWatcherRepository, fileRepository database.FileRepository, machineRepository database.MachineRepository, logger *slog.Logger, opts ...WatcherServiceOption) *WatcherService {
 	svc := &WatcherService{
 		fileWatcherRepository: fileWatcherRepository,
 		fileRepository:        fileRepository,
 		machineRepository:     machineRepository,
 		logger:                logger,
-		transactor:            transactor,
 	}
 	for _, opt := range opts {
 		opt(svc)
@@ -94,7 +92,7 @@ func (s *WatcherService) AddExistingFiles(w *database.FileWatcher, fileRepo data
 		logger.Error("fetch machine for watcher", "machine_name", w.MachineName, "error", err)
 	}
 	s.logger.Debug("creating sync job to add existing files", "machine_name", w.MachineName, "watcher_name", w.Name)
-	syncJob := NewSyncJob(logger, w, machine, fileRepo, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
+	syncJob := NewSyncJob(logger, w, machine, fileRepo, s.fileWatcherRepository, s.syncJobOpts...)
 	if _, err := syncJob.Run(true); err != nil {
 		logger.Error("add existing files for watcher", "watcher_name", w.Name, "error", err)
 	}
@@ -182,13 +180,9 @@ func (s *WatcherService) DeleteWatcher(_ context.Context, req *pb.DeleteWatcherR
 
 // SyncWatcher walks the watcher's source_path, diffs against the current
 // unflushed watched_files in the DB, and adds/removes entries accordingly.
-// It validates that the caller's machine (identified by token) owns the watcher.
 func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherRequest) (*pb.SyncWatcherResponse, error) {
 	if req.Name == "" {
 		return nil, status.Error(codes.InvalidArgument, "name is required")
-	}
-	if req.Token == "" {
-		return nil, status.Error(codes.InvalidArgument, "token is required")
 	}
 
 	w, err := s.fileWatcherRepository.GetWatcherByName(req.Name)
@@ -196,15 +190,9 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 		return nil, status.Errorf(codes.NotFound, "watcher %s not found", req.Name)
 	}
 
-	// Verify the caller's machine owns this watcher.
-	callerMachine, err := s.machineRepository.GetMachineByToken(req.Token)
+	callerMachine, err := s.machineRepository.GetMachineByName(w.MachineName)
 	if err != nil {
-		return nil, status.Errorf(codes.PermissionDenied, "machine with token %q is not registered", req.Token)
-	}
-	if callerMachine.Name != w.MachineName {
-		return nil, status.Errorf(codes.PermissionDenied,
-			"watcher %q belongs to machine %q, but request comes from machine %q",
-			req.Name, w.MachineName, callerMachine.Name)
+		return nil, status.Errorf(codes.Internal, "machine %q not found: %v", w.MachineName, err)
 	}
 
 	unlock, ok := s.tryAcquireSyncLock(req.Name)
@@ -213,7 +201,7 @@ func (s *WatcherService) SyncWatcher(_ context.Context, req *pb.SyncWatcherReque
 	}
 	defer unlock()
 
-	syncJob := NewSyncJob(s.logger, w, callerMachine, s.fileRepository, s.fileWatcherRepository, s.transactor, s.syncJobOpts...)
+	syncJob := NewSyncJob(s.logger, w, callerMachine, s.fileRepository, s.fileWatcherRepository, s.syncJobOpts...)
 
 	result, err := syncJob.Run(false)
 	if err != nil {
@@ -235,24 +223,15 @@ func (s *WatcherService) StreamSyncWatcher(req *pb.SyncWatcherRequest, stream gr
 	if req.Name == "" {
 		return status.Error(codes.InvalidArgument, "name is required")
 	}
-	if req.Token == "" {
-		return status.Error(codes.InvalidArgument, "token is required")
-	}
 
 	w, err := s.fileWatcherRepository.GetWatcherByName(req.Name)
 	if err != nil {
 		return status.Errorf(codes.NotFound, "watcher %s not found", req.Name)
 	}
 
-	// Verify the caller's machine owns this watcher.
-	callerMachine, err := s.machineRepository.GetMachineByToken(req.Token)
+	callerMachine, err := s.machineRepository.GetMachineByName(w.MachineName)
 	if err != nil {
-		return status.Errorf(codes.PermissionDenied, "machine with token %q is not registered", req.Token)
-	}
-	if callerMachine.Name != w.MachineName {
-		return status.Errorf(codes.PermissionDenied,
-			"watcher %q belongs to machine %q, but request comes from machine %q",
-			req.Name, w.MachineName, callerMachine.Name)
+		return status.Errorf(codes.Internal, "machine %q not found: %v", w.MachineName, err)
 	}
 
 	unlock, ok := s.tryAcquireSyncLock(req.Name)
@@ -272,7 +251,7 @@ func (s *WatcherService) StreamSyncWatcher(req *pb.SyncWatcherRequest, stream gr
 
 	syncJob := NewSyncJob(
 		s.logger, w, callerMachine,
-		s.fileRepository, s.fileWatcherRepository, s.transactor,
+		s.fileRepository, s.fileWatcherRepository,
 		append(s.syncJobOpts, WithLogCallback(func(msg string) {
 			// Best-effort: ignore send errors inside the callback; the Run()
 			// caller will surface any stream error through the returned error.

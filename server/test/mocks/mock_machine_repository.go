@@ -11,8 +11,8 @@ type MockMachineRepository struct {
 	mock.Mock
 }
 
-func (m *MockMachineRepository) CreateMachine(name, token, ip string, sshPort int32, sshUser string, sshPrivateKeyPath string) (*database.Machine, error) {
-	args := m.Called(name, token, ip, sshPort, sshUser, sshPrivateKeyPath)
+func (m *MockMachineRepository) CreateMachine(name, ip string, sshPort int32, sshUser string, sshPrivateKeyPath string) (*database.Machine, error) {
+	args := m.Called(name, ip, sshPort, sshUser, sshPrivateKeyPath)
 	if v := args.Get(0); v != nil {
 		return v.(*database.Machine), args.Error(1)
 	}
@@ -27,18 +27,18 @@ func (m *MockMachineRepository) GetMachineByName(name string) (*database.Machine
 	return nil, args.Error(1)
 }
 
-func (m *MockMachineRepository) GetMachineByToken(token string) (*database.Machine, error) {
-	args := m.Called(token)
-	if v := args.Get(0); v != nil {
-		return v.(*database.Machine), args.Error(1)
-	}
-	return nil, args.Error(1)
-}
-
 func (m *MockMachineRepository) ListMachines() ([]*database.Machine, error) {
 	args := m.Called()
 	if v := args.Get(0); v != nil {
 		return v.([]*database.Machine), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockMachineRepository) UpdateMachine(name string, ip *string, sshPort *int32, sshUser *string, sshPrivateKeyPath *string) (*database.Machine, error) {
+	args := m.Called(name, ip, sshPort, sshUser, sshPrivateKeyPath)
+	if v := args.Get(0); v != nil {
+		return v.(*database.Machine), args.Error(1)
 	}
 	return nil, args.Error(1)
 }

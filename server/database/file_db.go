@@ -1,7 +1,6 @@
 package database
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -26,26 +25,18 @@ type PendingFlush struct {
 	FilePath      string
 	FileName      string
 	TargetPath    string
-}
-
-func (db *DB) WithTransaction(ctx context.Context, fn func(tx TransactionalFileRepository) error) error {
-	tx, err := db.conn.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if p := recover(); p != nil {
-			_ = tx.Rollback()
-			panic(p)
-		}
-	}()
-
-	txDB := &TxDB{tx: tx}
-	if err := fn(txDB); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	return tx.Commit()
+	// Source machine SSH details
+	MachineName              string
+	MachineIP                string
+	MachineSSHPort           int32
+	MachineSSHUser           string
+	MachineSSHPrivateKeyPath string
+	// Target machine SSH details
+	TargetMachineName              string
+	TargetMachineIP                string
+	TargetMachineSSHPort           int32
+	TargetMachineSSHUser           string
+	TargetMachineSSHPrivateKeyPath string
 }
 
 // AddWatchedFile inserts a newly detected file.
@@ -218,7 +209,9 @@ func (db *DB) FlushWatchedFiles(ids []int64) error {
 
 func (db *DB) ListPendingFlushes(name string) ([]*PendingFlush, error) {
 	rows, err := db.conn.Query(
-		`SELECT watched_file_id, watcher_name, file_path, file_name, target_path
+		`SELECT watched_file_id, watcher_name, file_path, file_name, target_path,
+		        machine_name, machine_ip, machine_ssh_port, machine_ssh_user, machine_ssh_private_key_path,
+		        target_machine_name, target_machine_ip, target_machine_ssh_port, target_machine_ssh_user, target_machine_ssh_private_key_path
 			FROM pending_file_flushes WHERE watcher_name = ?`, name)
 	if err != nil {
 		return nil, fmt.Errorf("list pending flushes: %w", err)
@@ -227,7 +220,11 @@ func (db *DB) ListPendingFlushes(name string) ([]*PendingFlush, error) {
 	var result []*PendingFlush
 	for rows.Next() {
 		var pf PendingFlush
-		if err := rows.Scan(&pf.WatchedFileID, &pf.WatcherName, &pf.FilePath, &pf.FileName, &pf.TargetPath); err != nil {
+		if err := rows.Scan(
+			&pf.WatchedFileID, &pf.WatcherName, &pf.FilePath, &pf.FileName, &pf.TargetPath,
+			&pf.MachineName, &pf.MachineIP, &pf.MachineSSHPort, &pf.MachineSSHUser, &pf.MachineSSHPrivateKeyPath,
+			&pf.TargetMachineName, &pf.TargetMachineIP, &pf.TargetMachineSSHPort, &pf.TargetMachineSSHUser, &pf.TargetMachineSSHPrivateKeyPath,
+		); err != nil {
 			return nil, fmt.Errorf("scan pending flush: %w", err)
 		}
 		result = append(result, &pf)

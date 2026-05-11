@@ -1,7 +1,6 @@
 CREATE TABLE IF NOT EXISTS machines
 (
     id                      INTEGER PRIMARY KEY,
-    token                   TEXT UNIQUE NOT NULL,
     name                    TEXT UNIQUE NOT NULL,
     ip                      TEXT        NOT NULL,
     ssh_port                INTEGER     NOT NULL,
@@ -36,24 +35,34 @@ CREATE TABLE IF NOT EXISTS watched_files
 
 CREATE TABLE IF NOT EXISTS file_redirections
 (
-    watcher_name TEXT PRIMARY KEY REFERENCES file_watchers (name) ON DELETE CASCADE,
-    target_path  TEXT    NOT NULL,
-    auto_flush   INTEGER NOT NULL DEFAULT 0,
-    created_at   TEXT    NOT NULL,
-    updated_at   TEXT    NOT NULL
+    watcher_name        TEXT PRIMARY KEY REFERENCES file_watchers(name) ON DELETE CASCADE,
+    target_path         TEXT    NOT NULL,
+    target_machine_name TEXT    NOT NULL REFERENCES machines(name),
+    created_at          TEXT    NOT NULL,
+    updated_at          TEXT    NOT NULL
 );
 
 -- View: all unflushed files paired with their watcher's redirection target.
 -- Files whose watcher has no redirection are excluded and remain unflushed.
 CREATE VIEW IF NOT EXISTS pending_file_flushes AS
-SELECT wf.id           AS watched_file_id,
-       m.name          AS machine_name,
-       wf.watcher_name AS watcher_name,
-       wf.file_path    AS file_path,
-       wf.file_name    AS file_name,
-       fr.target_path  AS target_path
+SELECT wf.id               AS watched_file_id,
+       m.name              AS machine_name,
+       m.ip                AS machine_ip,
+       m.ssh_port          AS machine_ssh_port,
+       m.ssh_user          AS machine_ssh_user,
+       m.ssh_private_key_path AS machine_ssh_private_key_path,
+       wf.watcher_name     AS watcher_name,
+       wf.file_path        AS file_path,
+       wf.file_name        AS file_name,
+       fr.target_path      AS target_path,
+       tm.name             AS target_machine_name,
+       tm.ip               AS target_machine_ip,
+       tm.ssh_port         AS target_machine_ssh_port,
+       tm.ssh_user         AS target_machine_ssh_user,
+       tm.ssh_private_key_path AS target_machine_ssh_private_key_path
 FROM watched_files wf
          INNER JOIN file_redirections fr ON fr.watcher_name = wf.watcher_name
          INNER JOIN file_watchers fw ON fw.name = wf.watcher_name
          INNER JOIN machines m ON m.name = fw.machine_name
+         INNER JOIN machines tm ON tm.name = fr.target_machine_name
 WHERE wf.flushed = 0;

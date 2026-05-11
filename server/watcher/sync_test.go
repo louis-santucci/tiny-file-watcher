@@ -28,11 +28,10 @@ func newSyncJob(
 	dir string,
 	fileRepo database.FileRepository,
 	fileWatcherRepo database.FileWatcherRepository,
-	transactor database.Transactor,
 	opts ...watcher.SyncJobOption,
 ) *watcher.SyncJob {
 	w := &database.FileWatcher{ID: 1, Name: "w", SourcePath: dir, MachineName: "test-machine"}
-	machine := &database.Machine{ID: 1, Name: "test-machine", Token: "tok"}
+	machine := &database.Machine{ID: 1, Name: "test-machine"}
 	allOpts := append([]watcher.SyncJobOption{watcher.WithRemoteFS(watcher.LocalRemoteFS())}, opts...)
 	return watcher.NewSyncJob(
 		testutil.TestLogger(),
@@ -40,7 +39,6 @@ func newSyncJob(
 		machine,
 		fileRepo,
 		fileWatcherRepo,
-		transactor,
 		allOpts...,
 	)
 }
@@ -70,20 +68,18 @@ func TestSyncJob_NewFiles_AreAdded(t *testing.T) {
 
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
-
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+	fileRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
 		return files.Size() == 2
 	}), false).Return([]*database.WatchedFile{}, nil)
 
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	result, err := job.Run(false)
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(2), result.AddedCount)
 	assert.Equal(t, int32(0), result.RemovedCount)
 	assert.ElementsMatch(t, []string{f1, f2}, result.AddedFiles.Items())
-	txRepo.AssertExpectations(t)
+	fileRepo.AssertExpectations(t)
 }
 
 func TestSyncJob_FlushTrue_FilesInsertedAsFlushed(t *testing.T) {
@@ -92,17 +88,14 @@ func TestSyncJob_FlushTrue_FilesInsertedAsFlushed(t *testing.T) {
 
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
+	fileRepo.On("BulkAddWatchedFiles", "w", mock.Anything, true).Return([]*database.WatchedFile{}, nil)
 
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	// flush=true is forwarded to BulkAddWatchedFiles
-	txRepo.On("BulkAddWatchedFiles", "w", mock.Anything, true).Return([]*database.WatchedFile{}, nil)
-
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	result, err := job.Run(true)
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), result.AddedCount)
-	txRepo.AssertExpectations(t)
+	fileRepo.AssertExpectations(t)
 }
 
 func TestSyncJob_FlushFalse_FilesInsertedAsPending(t *testing.T) {
@@ -111,17 +104,14 @@ func TestSyncJob_FlushFalse_FilesInsertedAsPending(t *testing.T) {
 
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
+	fileRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
 
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	// flush=false is forwarded to BulkAddWatchedFiles
-	txRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
-
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	result, err := job.Run(false)
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), result.AddedCount)
-	txRepo.AssertExpectations(t)
+	fileRepo.AssertExpectations(t)
 }
 
 // ── SyncJob.Run: no-op when files already tracked ────────────────────────────
@@ -136,66 +126,55 @@ func TestSyncJob_ExistingFiles_NotReAdded(t *testing.T) {
 		{ID: 1, WatcherName: "w", FilePath: f},
 	}, nil)
 
-	txRepo := &mocks.MockTransactionalFileRepository{}
-
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	result, err := job.Run(false)
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(0), result.AddedCount)
 	assert.Equal(t, int32(0), result.RemovedCount)
-	txRepo.AssertNotCalled(t, "BulkAddWatchedFiles", mock.Anything, mock.Anything, mock.Anything)
-	txRepo.AssertNotCalled(t, "BulkRemoveWatchedFiles", mock.Anything, mock.Anything)
+	fileRepo.AssertNotCalled(t, "BulkAddWatchedFiles", mock.Anything, mock.Anything, mock.Anything)
+	fileRepo.AssertNotCalled(t, "BulkRemoveWatchedFiles", mock.Anything, mock.Anything)
 }
 
 // ── SyncJob.Run: removals ─────────────────────────────────────────────────────
 
 func TestSyncJob_DeletedFiles_AreRemoved(t *testing.T) {
 	dir := t.TempDir()
-	// ghost.txt was in the DB but is not on disk
 	ghost := filepath.Join(dir, "ghost.txt")
 
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{
 		{ID: 1, WatcherName: "w", FilePath: ghost},
 	}, nil)
-
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkRemoveWatchedFiles", "w", mock.MatchedBy(func(paths []string) bool {
+	fileRepo.On("BulkRemoveWatchedFiles", "w", mock.MatchedBy(func(paths []string) bool {
 		return len(paths) == 1 && paths[0] == ghost
 	})).Return(nil)
 
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	result, err := job.Run(false)
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(0), result.AddedCount)
 	assert.Equal(t, int32(1), result.RemovedCount)
 	assert.Equal(t, []string{ghost}, result.RemovedFiles)
-	txRepo.AssertExpectations(t)
+	fileRepo.AssertExpectations(t)
 }
 
 func TestSyncJob_AddAndRemove_Simultaneously(t *testing.T) {
 	dir := t.TempDir()
-	// kept.txt is both on disk and in the DB — should not be added or removed.
 	kept := filepath.Join(dir, "kept.txt")
-	// new.txt is on disk but not in the DB — should be added.
 	newFile := filepath.Join(dir, "new.txt")
-	// gone.txt is in the DB but not on disk — should be removed.
 	gone := filepath.Join(dir, "gone.txt")
 
 	writeFile(t, kept)
 	writeFile(t, newFile)
-	// gone.txt intentionally NOT created on disk
 
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{
 		{ID: 1, WatcherName: "w", FilePath: kept},
 		{ID: 2, WatcherName: "w", FilePath: gone},
 	}, nil)
-
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+	fileRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
 		if files.Size() != 1 {
 			return false
 		}
@@ -206,11 +185,11 @@ func TestSyncJob_AddAndRemove_Simultaneously(t *testing.T) {
 		}
 		return false
 	}), false).Return([]*database.WatchedFile{}, nil)
-	txRepo.On("BulkRemoveWatchedFiles", "w", mock.MatchedBy(func(paths []string) bool {
+	fileRepo.On("BulkRemoveWatchedFiles", "w", mock.MatchedBy(func(paths []string) bool {
 		return len(paths) == 1 && paths[0] == gone
 	})).Return(nil)
 
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	result, err := job.Run(false)
 
 	assert.NoError(t, err)
@@ -218,7 +197,7 @@ func TestSyncJob_AddAndRemove_Simultaneously(t *testing.T) {
 	assert.Equal(t, int32(1), result.RemovedCount)
 	assert.Equal(t, []string{newFile}, result.AddedFiles.Items())
 	assert.Equal(t, []string{gone}, result.RemovedFiles)
-	txRepo.AssertExpectations(t)
+	fileRepo.AssertExpectations(t)
 }
 
 // ── SyncJob.Run: empty directory ──────────────────────────────────────────────
@@ -229,16 +208,14 @@ func TestSyncJob_EmptyDirectory_NoChanges(t *testing.T) {
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
 
-	txRepo := &mocks.MockTransactionalFileRepository{}
-
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	result, err := job.Run(false)
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(0), result.AddedCount)
 	assert.Equal(t, int32(0), result.RemovedCount)
-	txRepo.AssertNotCalled(t, "BulkAddWatchedFiles", mock.Anything, mock.Anything, mock.Anything)
-	txRepo.AssertNotCalled(t, "BulkRemoveWatchedFiles", mock.Anything, mock.Anything)
+	fileRepo.AssertNotCalled(t, "BulkAddWatchedFiles", mock.Anything, mock.Anything, mock.Anything)
+	fileRepo.AssertNotCalled(t, "BulkRemoveWatchedFiles", mock.Anything, mock.Anything)
 }
 
 // ── SyncJob.Run: subdirectory traversal ──────────────────────────────────────
@@ -254,9 +231,7 @@ func TestSyncJob_SubdirectoryFiles_AreDiscovered(t *testing.T) {
 
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
-
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+	fileRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
 		for _, v := range files.Items() {
 			if v == deep {
 				return true
@@ -265,13 +240,13 @@ func TestSyncJob_SubdirectoryFiles_AreDiscovered(t *testing.T) {
 		return false
 	}), false).Return([]*database.WatchedFile{}, nil)
 
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	result, err := job.Run(false)
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), result.AddedCount)
 	assert.Contains(t, result.AddedFiles.Items(), deep)
-	txRepo.AssertExpectations(t)
+	fileRepo.AssertExpectations(t)
 }
 
 func TestSyncJob_NestedSubdirectories_AllFilesDiscovered(t *testing.T) {
@@ -290,19 +265,17 @@ func TestSyncJob_NestedSubdirectories_AllFilesDiscovered(t *testing.T) {
 
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
-
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+	fileRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
 		return files.Size() == 3
 	}), false).Return([]*database.WatchedFile{}, nil)
 
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	result, err := job.Run(false)
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(3), result.AddedCount)
 	assert.ElementsMatch(t, []string{f1, f2, f3}, sortedStrings(result.AddedFiles.Items()))
-	txRepo.AssertExpectations(t)
+	fileRepo.AssertExpectations(t)
 }
 
 // ── SyncJob.Run: .tfwignore filtering ────────────────────────────────────────
@@ -319,9 +292,7 @@ func TestSyncJob_IgnoredFiles_NotAdded(t *testing.T) {
 
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
-
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+	fileRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
 		if files.Size() != 1 {
 			return false
 		}
@@ -333,13 +304,13 @@ func TestSyncJob_IgnoredFiles_NotAdded(t *testing.T) {
 		return false
 	}), false).Return([]*database.WatchedFile{}, nil)
 
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	result, err := job.Run(false)
 
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), result.AddedCount)
 	assert.NotContains(t, result.AddedFiles.Items(), ignored)
-	txRepo.AssertExpectations(t)
+	fileRepo.AssertExpectations(t)
 }
 
 func TestSyncJob_TfwignoreFileItself_NotTracked(t *testing.T) {
@@ -352,9 +323,7 @@ func TestSyncJob_TfwignoreFileItself_NotTracked(t *testing.T) {
 
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
-
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
+	fileRepo.On("BulkAddWatchedFiles", "w", mock.MatchedBy(func(files *internal.Set[string]) bool {
 		for _, name := range files.Items() {
 			if filepath.Base(name) == ".tfwignore" {
 				return false
@@ -363,7 +332,7 @@ func TestSyncJob_TfwignoreFileItself_NotTracked(t *testing.T) {
 		return true
 	}), false).Return([]*database.WatchedFile{}, nil)
 
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	result, err := job.Run(false)
 
 	assert.NoError(t, err)
@@ -371,7 +340,7 @@ func TestSyncJob_TfwignoreFileItself_NotTracked(t *testing.T) {
 	for _, f := range result.AddedFiles.Items() {
 		assert.NotEqual(t, ".tfwignore", filepath.Base(f))
 	}
-	txRepo.AssertExpectations(t)
+	fileRepo.AssertExpectations(t)
 }
 
 // ── SyncJob.Run: log callback ─────────────────────────────────────────────────
@@ -382,16 +351,14 @@ func TestSyncJob_LogCallback_ReceivesExpectedMessages(t *testing.T) {
 
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
-
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
+	fileRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
 
 	var logMessages []string
 	logCallback := watcher.WithLogCallback(func(msg string) {
 		logMessages = append(logMessages, msg)
 	})
 
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo}, logCallback)
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, logCallback)
 	_, err := job.Run(false)
 
 	assert.NoError(t, err)
@@ -410,12 +377,9 @@ func TestSyncJob_NoLogCallback_DoesNotPanic(t *testing.T) {
 
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
+	fileRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
 
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
-
-	// No WithLogCallback option — onLog is nil; must not panic.
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	assert.NotPanics(t, func() {
 		_, _ = job.Run(false)
 	})
@@ -429,7 +393,7 @@ func TestSyncJob_ListWatchedFiles_DBError_ReturnsError(t *testing.T) {
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return(nil, errors.New("db boom"))
 
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.NoopTransactor{})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	_, err := job.Run(false)
 
 	assert.Error(t, err)
@@ -442,35 +406,30 @@ func TestSyncJob_BulkAdd_DBError_ReturnsError(t *testing.T) {
 
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
+	fileRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return(nil, errors.New("insert failed"))
 
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return(nil, errors.New("insert failed"))
-
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	_, err := job.Run(false)
 
 	assert.Error(t, err)
-	txRepo.AssertExpectations(t)
+	fileRepo.AssertExpectations(t)
 }
 
 func TestSyncJob_BulkRemove_DBError_ReturnsError(t *testing.T) {
 	dir := t.TempDir()
-	// ghost.txt is in DB but not on disk
 	ghost := filepath.Join(dir, "ghost.txt")
 
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{
 		{ID: 1, WatcherName: "w", FilePath: ghost},
 	}, nil)
+	fileRepo.On("BulkRemoveWatchedFiles", "w", mock.Anything).Return(errors.New("delete failed"))
 
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkRemoveWatchedFiles", "w", mock.Anything).Return(errors.New("delete failed"))
-
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	_, err := job.Run(false)
 
 	assert.Error(t, err)
-	txRepo.AssertExpectations(t)
+	fileRepo.AssertExpectations(t)
 }
 
 // ── SyncJob.Run: idempotency ──────────────────────────────────────────────────
@@ -483,10 +442,9 @@ func TestSyncJob_RunTwice_Idempotent(t *testing.T) {
 	// First run: file is new
 	fileRepo1 := &mocks.MockFileRepository{}
 	fileRepo1.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
-	txRepo1 := &mocks.MockTransactionalFileRepository{}
-	txRepo1.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
+	fileRepo1.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
 
-	job1 := newSyncJob(dir, fileRepo1, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo1})
+	job1 := newSyncJob(dir, fileRepo1, &mocks.MockFileWatcherRepository{})
 	result1, err := job1.Run(false)
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), result1.AddedCount)
@@ -496,14 +454,13 @@ func TestSyncJob_RunTwice_Idempotent(t *testing.T) {
 	fileRepo2.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{
 		{ID: 1, WatcherName: "w", FilePath: f},
 	}, nil)
-	txRepo2 := &mocks.MockTransactionalFileRepository{}
 
-	job2 := newSyncJob(dir, fileRepo2, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo2})
+	job2 := newSyncJob(dir, fileRepo2, &mocks.MockFileWatcherRepository{})
 	result2, err := job2.Run(false)
 	assert.NoError(t, err)
 	assert.Equal(t, int32(0), result2.AddedCount)
 	assert.Equal(t, int32(0), result2.RemovedCount)
-	txRepo2.AssertNotCalled(t, "BulkAddWatchedFiles", mock.Anything, mock.Anything, mock.Anything)
+	fileRepo2.AssertNotCalled(t, "BulkAddWatchedFiles", mock.Anything, mock.Anything, mock.Anything)
 }
 
 // ── SyncJob.Run: result fields ────────────────────────────────────────────────
@@ -515,11 +472,9 @@ func TestSyncJob_Result_AddedFilesContainFullPaths(t *testing.T) {
 
 	fileRepo := &mocks.MockFileRepository{}
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{}, nil)
+	fileRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
 
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkAddWatchedFiles", "w", mock.Anything, false).Return([]*database.WatchedFile{}, nil)
-
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	result, err := job.Run(false)
 
 	assert.NoError(t, err)
@@ -535,11 +490,9 @@ func TestSyncJob_Result_RemovedFilesContainFullPaths(t *testing.T) {
 	fileRepo.On("ListWatchedFiles", "w").Return([]*database.WatchedFile{
 		{ID: 1, WatcherName: "w", FilePath: ghost},
 	}, nil)
+	fileRepo.On("BulkRemoveWatchedFiles", "w", mock.Anything).Return(nil)
 
-	txRepo := &mocks.MockTransactionalFileRepository{}
-	txRepo.On("BulkRemoveWatchedFiles", "w", mock.Anything).Return(nil)
-
-	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{}, &mocks.PassthroughTransactor{Repo: txRepo})
+	job := newSyncJob(dir, fileRepo, &mocks.MockFileWatcherRepository{})
 	result, err := job.Run(false)
 
 	assert.NoError(t, err)

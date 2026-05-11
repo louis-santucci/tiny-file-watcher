@@ -1,17 +1,16 @@
 package watcher
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"os"
 	"strconv"
 	. "tiny-file-watcher/internal"
 	"tiny-file-watcher/server/database"
+	tfwssh "tiny-file-watcher/server/ssh"
 
 	"github.com/kr/fs"
 	"github.com/pkg/sftp"
-	"golang.org/x/crypto/ssh"
 )
 
 // RemoteFS abstracts the file-system operations performed against the remote
@@ -56,7 +55,6 @@ type SyncJob struct {
 	logger            *slog.Logger
 	fileRepository    database.FileRepository
 	watcherRepository database.FileWatcherRepository
-	transactor        database.Transactor
 	// remoteFS overrides the SSH/SFTP transport when set (used in tests).
 	remoteFS RemoteFS
 	// onLog is an optional callback invoked with a human-readable message at
@@ -99,14 +97,13 @@ type SyncResult struct {
 	RemovedFiles []string
 }
 
-func NewSyncJob(logger *slog.Logger, watcher *database.FileWatcher, machine *database.Machine, fileRepo database.FileRepository, watcherRepo database.FileWatcherRepository, transactor database.Transactor, opts ...SyncJobOption) *SyncJob {
+func NewSyncJob(logger *slog.Logger, watcher *database.FileWatcher, machine *database.Machine, fileRepo database.FileRepository, watcherRepo database.FileWatcherRepository, opts ...SyncJobOption) *SyncJob {
 	j := &SyncJob{
 		watcher:           watcher,
 		machine:           machine,
 		logger:            logger,
 		fileRepository:    fileRepo,
 		watcherRepository: watcherRepo,
-		transactor:        transactor,
 	}
 	for _, opt := range opts {
 		opt(j)
@@ -182,8 +179,8 @@ func (j *SyncJob) Run(flush bool) (*SyncResult, error) {
 
 // openRemoteFS returns the RemoteFS to use for this sync run.
 // If one was injected via WithRemoteFS it is returned directly.
-// Otherwise an SSH/SFTP connection is established using a FixedHostKey
-// loaded from the path stored on the machine record.
+// Otherwise an SSH/SFTP connection is established using the credentials
+// stored on the machine record.
 func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 	if j.remoteFS != nil {
 		return j.remoteFS, nil
@@ -191,59 +188,36 @@ func (j *SyncJob) openRemoteFS() (RemoteFS, error) {
 
 	j.logger.Debug("private key path", "path", j.machine.SSHPrivateKeyPath)
 
-	sshConfig := ssh.ClientConfig{
-		User: j.machine.SSHUser,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
-				keyBytes, err := os.ReadFile(j.machine.SSHPrivateKeyPath)
-				if err != nil {
-					return nil, err
-				}
-				key, err := ssh.ParsePrivateKey(keyBytes)
-				if err != nil {
-					return nil, err
-				}
-				return []ssh.Signer{key}, nil
-			}),
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	cfg := tfwssh.MachineConfig{
+		Name:              j.machine.Name,
+		IP:                j.machine.IP,
+		SSHPort:           j.machine.SSHPort,
+		SSHUser:           j.machine.SSHUser,
+		SSHPrivateKeyPath: j.machine.SSHPrivateKeyPath,
 	}
 
-	sshUrl := j.machine.IP + ":" + strconv.Itoa(int(j.machine.SSHPort))
-	j.logger.Debug("sync: SSH URL: " + sshUrl)
-	sshConnection, err := ssh.Dial("tcp", sshUrl, &sshConfig)
+	j.logger.Debug("sync: SSH URL: " + cfg.IP + ":" + strconv.Itoa(int(cfg.SSHPort)))
+
+	client, err := tfwssh.NewClient(cfg)
 	if err != nil {
 		j.logger.Error("failed to connect to machine", "error", err)
 		return nil, err
 	}
-	sftpClient, err := sftp.NewClient(sshConnection)
-	if err != nil {
-		j.logger.Error("failed to create SFTP sftpClient", "error", err)
-		sshConnection.Close()
-		return nil, err
-	}
-	return sftpRemoteFS{c: sftpClient}, nil
+	return sftpRemoteFS{c: client.SFTPClient}, nil
 }
 
 func (j *SyncJob) saveUpdates(addedFiles *Set[string], removedFiles []string, flush bool) error {
-	err := j.transactor.WithTransaction(context.Background(), func(repo database.TransactionalFileRepository) error {
-		if addedFiles.Size() > 0 {
-			_, err := repo.BulkAddWatchedFiles(j.watcher.Name, addedFiles, flush)
-			if err != nil {
-				return err
-			}
+	if addedFiles.Size() > 0 {
+		if _, err := j.fileRepository.BulkAddWatchedFiles(j.watcher.Name, addedFiles, flush); err != nil {
+			j.logger.Error("sync: database error on bulk add", "error", err, "watcher", j.watcher.Name)
+			return err
 		}
-		if len(removedFiles) > 0 {
-			err := repo.BulkRemoveWatchedFiles(j.watcher.Name, removedFiles)
-			if err != nil {
-				return err
-			}
+	}
+	if len(removedFiles) > 0 {
+		if err := j.fileRepository.BulkRemoveWatchedFiles(j.watcher.Name, removedFiles); err != nil {
+			j.logger.Error("sync: database error on bulk remove", "error", err, "watcher", j.watcher.Name)
+			return err
 		}
-		return nil
-	})
-	if err != nil {
-		j.logger.Error("sync: database error on update", "error", err, "watcher", j.watcher.Name)
-		return err
 	}
 	return nil
 }

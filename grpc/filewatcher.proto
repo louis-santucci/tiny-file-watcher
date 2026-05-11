@@ -19,7 +19,7 @@ message Watcher {
 message FileRedirection {
   string watcher_name = 1;
   string target_path = 2;
-  bool auto_flush = 3;
+  string target_machine_name = 3;
   google.protobuf.Timestamp created_at = 4;
   google.protobuf.Timestamp updated_at = 5;
 }
@@ -41,13 +41,12 @@ message GetFileRedirectionRequest {
 message CreateFileRedirectionRequest {
   string watcher_name = 1;
   string target_path = 2;
-  bool auto_flush = 3;
+  string target_machine_name = 3;
 }
 
 message UpdateFileRedirectionRequest {
   string watcher_name = 1;
   optional string target_path = 2;
-  optional bool auto_flush = 3;
 }
 
 message DeleteFileRedirectionRequest {
@@ -145,7 +144,6 @@ message DeleteFilterResponse {
 
 message SyncWatcherRequest {
   string name = 1;
-  string token = 2;
 }
 
 message SyncWatcherResponse {
@@ -166,6 +164,17 @@ message SyncWatcherEvent {
   optional SyncWatcherResponse result = 3; // populated only on RESULT events
 }
 
+message FlushWatcherEvent {
+  enum EventType {
+    LOG = 0;
+    RESULT = 1;
+  }
+
+  EventType type = 1;
+  string    message = 2; // human-readable text; populated on LOG events
+  optional FlushWatcherResponse result = 3; // populated only on RESULT events
+}
+
 message ListWatchedFilesRequest {
   string watcher_name = 1;
 }
@@ -176,22 +185,20 @@ message ListWatchedFilesResponse {
 
 message InitializeMachineRequest {
   string name = 1;
-  string token = 2;
-  string ip = 3;
-  int32 ssh_port = 4;
-  string ssh_user = 5;
-  string ssh_private_key = 6;
+  string ip = 2;
+  int32 ssh_port = 3;
+  string ssh_user = 4;
+  string ssh_private_key = 5;
 }
 
 message MachineResponse {
-  string token = 1;
-  string name = 2;
-  google.protobuf.Timestamp created_at = 3;
-  google.protobuf.Timestamp updated_at = 4;
-  string ip = 5;
-  int32 ssh_port = 6;
-  string ssh_user = 7;
-  string ssh_private_key = 8;
+  string name = 1;
+  google.protobuf.Timestamp created_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  string ip = 4;
+  int32 ssh_port = 5;
+  string ssh_user = 6;
+  string ssh_private_key = 7;
 }
 
 message DeleteMachineResponse {
@@ -200,6 +207,14 @@ message DeleteMachineResponse {
 
 message DeleteMachineRequest {
   string name = 1;
+}
+
+message UpdateMachineRequest {
+  string name = 1;
+  optional string ip = 2;
+  optional int32 ssh_port = 3;
+  optional string ssh_user = 4;
+  optional string ssh_private_key = 5;
 }
 
 message GetMachinesResponse {
@@ -211,6 +226,7 @@ message EmptyRequest {}
 service MachineService {
   rpc CreateMachine(InitializeMachineRequest) returns (MachineResponse);
   rpc GetMachines(EmptyRequest)               returns (GetMachinesResponse);
+  rpc UpdateMachine(UpdateMachineRequest)     returns (MachineResponse);
   rpc DeleteMachine(DeleteMachineRequest)     returns (DeleteMachineResponse);
 }
 
@@ -228,6 +244,7 @@ service FileWatcherService {
 
 service FileFlushService {
   rpc FlushWatcher(FlushWatcherRequest)         returns (FlushWatcherResponse);
+  rpc StreamFlushWatcher(FlushWatcherRequest)   returns (stream FlushWatcherEvent);
   rpc ListPendingFiles(ListPendingFilesRequest) returns (ListPendingFilesResponse);
 }
 

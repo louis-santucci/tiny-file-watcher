@@ -13,6 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	SSHUser     = "ssh-user"
+	SSHKey      = "ssh-key"
+	TestMachine = "test-machine"
+)
+
 // newDB opens a fresh SQLite database in a temp directory.
 func newDB(t *testing.T) *database.DB {
 	t.Helper()
@@ -30,14 +36,14 @@ func TestIntegration_WatcherLifecycle(t *testing.T) {
 	db := newDB(t)
 	srcDir := t.TempDir()
 
-	_, err := db.CreateMachine("test-machine", "hw-id-lifecycle", "10.0.0.1", 22, "ssh-user", "ssh-key")
+	_, err := db.CreateMachine(TestMachine, "10.0.0.1", 22, SSHUser, SSHKey)
 	require.NoError(t, err)
 
-	w, err := db.CreateWatcher("lifecycle-watcher", srcDir, "test-machine")
+	w, err := db.CreateWatcher("lifecycle-watcher", srcDir, TestMachine)
 	require.NoError(t, err)
 	assert.Equal(t, "lifecycle-watcher", w.Name)
 	assert.Equal(t, srcDir, w.SourcePath)
-	assert.Equal(t, "test-machine", w.MachineName)
+	assert.Equal(t, TestMachine, w.MachineName)
 
 	// Update the watcher source path.
 	newPath := t.TempDir()
@@ -57,10 +63,10 @@ func TestIntegration_ListWatchedFiles(t *testing.T) {
 	db := newDB(t)
 	srcDir := t.TempDir()
 
-	_, err := db.CreateMachine("test-machine", "hw-id-list", "10.0.0.1", 22, "ssh-user", "ssh-key")
+	_, err := db.CreateMachine(TestMachine, "10.0.0.1", 22, SSHUser, SSHKey)
 	require.NoError(t, err)
 
-	_, err = db.CreateWatcher("list-watcher", srcDir, "test-machine")
+	_, err = db.CreateWatcher("list-watcher", srcDir, TestMachine)
 	require.NoError(t, err)
 
 	_, err = db.AddWatchedFile("list-watcher", filepath.Join(srcDir, "pending.txt"), true)
@@ -83,13 +89,13 @@ func TestIntegration_WatcherDeleteCascades(t *testing.T) {
 	srcDir := t.TempDir()
 	tgtDir := t.TempDir()
 
-	_, err := db.CreateMachine("test-machine", "hw-id-cascade", "10.0.0.1", 22, "ssh-user", "ssh-key")
+	_, err := db.CreateMachine(TestMachine, "10.0.0.1", 22, SSHUser, SSHKey)
 	require.NoError(t, err)
 
-	_, err = db.CreateWatcher("cascade-watcher", srcDir, "test-machine")
+	_, err = db.CreateWatcher("cascade-watcher", srcDir, TestMachine)
 	require.NoError(t, err)
 
-	_, err = db.AddRedirection("cascade-watcher", tgtDir, false)
+	_, err = db.AddRedirection("cascade-watcher", tgtDir, TestMachine)
 	require.NoError(t, err)
 
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "drop.txt"), []byte("x"), 0644))

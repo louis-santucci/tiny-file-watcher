@@ -7,10 +7,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
-	clientmachine "tiny-file-watcher/client/machine"
 	pb "tiny-file-watcher/gen/grpc"
 )
 
@@ -21,65 +19,99 @@ var machineCmd = &cobra.Command{
 }
 
 var (
-	createMachineIP         string
-	createMachineSSHPort    int32
-	createMachineSSHUser    string
-	createMachineSSHKeyPath string
-	createMachineSet        bool
+	machineIP         string
+	machineSSHPort    int32
+	machineSSHUser    string
+	machineSSHKeyPath string
 )
 
 func init() {
-	createMachineCmd.Flags().StringVar(&createMachineIP, "ip", "", "IP address of the machine (required)")
-	createMachineCmd.Flags().Int32Var(&createMachineSSHPort, "ssh-port", 22, "SSH port of the machine")
-	createMachineCmd.Flags().StringVar(&createMachineSSHUser, "ssh-user", "", "SSH user for the machine (required)")
-	createMachineCmd.Flags().StringVar(&createMachineSSHKeyPath, "ssh-key", "", "Full path to the SSH private key file on this machine, e.g. /home/user/.ssh/id_ed25519 (required)")
-	createMachineCmd.Flags().BoolVar(&createMachineSet, "set", false, "Save the machine token locally after creation (~/.tfw/machine.json)")
+	createMachineCmd.Flags().StringVar(&machineIP, "ip", "", "IP address of the machine (required)")
+	createMachineCmd.Flags().Int32Var(&machineSSHPort, "ssh-port", 22, "SSH port of the machine")
+	createMachineCmd.Flags().StringVar(&machineSSHUser, "ssh-user", "", "SSH user for the machine (required)")
+	createMachineCmd.Flags().StringVar(&machineSSHKeyPath, "ssh-key", "", "Full path to the SSH private key file on this machine, e.g. /home/user/.ssh/id_ed25519 (required)")
 	_ = createMachineCmd.MarkFlagRequired("ip")
 	_ = createMachineCmd.MarkFlagRequired("ssh-user")
 	_ = createMachineCmd.MarkFlagRequired("ssh-key")
+	updateMachineCmd.Flags().StringVar(&machineIP, "ip", "", "New IP address of the machine")
+	updateMachineCmd.Flags().Int32Var(&machineSSHPort, "ssh-port", 0, "New SSH port of the machine")
+	updateMachineCmd.Flags().StringVar(&machineSSHUser, "ssh-user", "", "New SSH user for the machine")
+	updateMachineCmd.Flags().StringVar(&machineSSHKeyPath, "ssh-key", "", "New full path to the SSH private key file on this machine, e.g. /home/user/.ssh/id_ed25519")
 
-	machineCmd.AddCommand(createMachineCmd, listMachinesCmd, deleteMachineCmd, setMachineCmd, unsetMachineCmd)
+	machineCmd.AddCommand(createMachineCmd, listMachinesCmd, deleteMachineCmd, updateMachineCmd)
+}
+
+var updateMachineCmd = &cobra.Command{
+	Use:   "update <name>",
+	Short: "Update an existing machine",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		svc := pb.NewMachineServiceClient(conn)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		fmt.Printf("Updating machine %s\n", args[0])
+
+		var ip, sshUser, sshKeyPath *string = nil, nil, nil
+		var sshPort *int32 = nil
+
+		if machineIP != "" {
+			ip = &machineIP
+		}
+		if machineSSHPort != 0 {
+			sshPort = &machineSSHPort
+		}
+		if machineSSHUser != "" {
+			sshUser = &machineSSHUser
+		}
+		if machineSSHKeyPath != "" {
+			sshKeyPath = &machineSSHKeyPath
+		}
+
+		resp, err := svc.UpdateMachine(ctx, &pb.UpdateMachineRequest{
+			Name:          args[0],
+			Ip:            ip,
+			SshUser:       sshUser,
+			SshPrivateKey: sshKeyPath,
+			SshPort:       sshPort,
+		})
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Machine %q updated (ip: %s, ssh-port: %d, ssh-user: %s)\n", resp.Name, resp.Ip, resp.SshPort, resp.SshUser)
+		return nil
+	},
 }
 
 var createMachineCmd = &cobra.Command{
 	Use:   "create <name>",
 	Short: "Register this machine with the server",
 	Long: `Register the current machine under the given name.
-A unique token is generated and saved locally to ~/.tfw/machine.json.
 Requires authentication (run 'tfw login' first).
 
 The --ssh-key flag must be the full path to a private key file on this machine (e.g. /home/user/.ssh/id_ed25519).
 The path is stored on the server and used for future SSH connections to this machine.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		token := uuid.New().String()
-
 		svc := pb.NewMachineServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		fmt.Printf("Creating machine %q with IP %q, SSH port %d, SSH user %q...\n", args[0], createMachineIP, createMachineSSHPort, createMachineSSHUser)
-		fmt.Printf("Using SSH key %q\n", createMachineSSHKeyPath)
+		fmt.Printf("Creating machine %q with IP %q, SSH port %d, SSH user %q...\n", args[0], machineIP, machineSSHPort, machineSSHUser)
+		fmt.Printf("Using SSH key %q\n", machineSSHKeyPath)
 		resp, err := svc.CreateMachine(ctx, &pb.InitializeMachineRequest{
 			Name:          args[0],
-			Token:         token,
-			Ip:            createMachineIP,
-			SshPort:       createMachineSSHPort,
-			SshUser:       createMachineSSHUser,
-			SshPrivateKey: createMachineSSHKeyPath,
+			Ip:            machineIP,
+			SshPort:       machineSSHPort,
+			SshUser:       machineSSHUser,
+			SshPrivateKey: machineSSHKeyPath,
 		})
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Machine %q created (token: %s, ip: %s, ssh-port: %d, ssh-user: %s)\n", resp.Name, token, resp.Ip, resp.SshPort, createMachineSSHUser)
-
-		if createMachineSet {
-			if err := clientmachine.SaveMachineState(resp.Name, token); err != nil {
-				return fmt.Errorf("save machine state locally: %w", err)
-			}
-			fmt.Printf("Machine state saved to ~/.tfw/machine.json\n")
-		}
+		fmt.Printf("Machine %q created (ip: %s, ssh-port: %d, ssh-user: %s)\n", resp.Name, resp.Ip, resp.SshPort, machineSSHUser)
 		return nil
 	},
 }
@@ -127,53 +159,14 @@ var deleteMachineCmd = &cobra.Command{
 
 func printMachines(machines []*pb.MachineResponse) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tIP\tSSH PORT\tSSH USER\tSSH PRIVATE KEY\tTOKEN\tCREATED AT")
-	fmt.Fprintln(w, "----\t--\t--------\t--------\t---------------\t-----\t----------")
+	fmt.Fprintln(w, "NAME\tIP\tSSH PORT\tSSH USER\tSSH PRIVATE KEY\tCREATED AT")
+	fmt.Fprintln(w, "----\t--\t--------\t--------\t---------------\t----------")
 	for _, m := range machines {
 		created := "-"
 		if m.CreatedAt != nil {
 			created = m.CreatedAt.AsTime().Format(time.DateTime)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\t%s\n", m.Name, m.Ip, m.SshPort, m.SshUser, m.SshPrivateKey, m.Token, created)
+		fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\n", m.Name, m.Ip, m.SshPort, m.SshUser, m.SshPrivateKey, created)
 	}
 	w.Flush()
-}
-
-var setMachineCmd = &cobra.Command{
-	Use:   "set <name>",
-	Short: "Set the local machine token from a registered machine",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		svc := pb.NewMachineServiceClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		resp, err := svc.GetMachines(ctx, &pb.EmptyRequest{})
-		if err != nil {
-			return err
-		}
-
-		for _, m := range resp.Machines {
-			if m.Name == args[0] {
-				if err := clientmachine.SaveMachineState(m.Name, m.Token); err != nil {
-					return fmt.Errorf("save machine state locally: %w", err)
-				}
-				fmt.Printf("Machine %q set. State saved to ~/.tfw/machine.json\n", m.Name)
-				return nil
-			}
-		}
-		return fmt.Errorf("machine %q not found", args[0])
-	},
-}
-
-var unsetMachineCmd = &cobra.Command{
-	Use:   "unset",
-	Short: "Remove the locally stored machine token",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := clientmachine.ClearMachineState(); err != nil {
-			return err
-		}
-		fmt.Println("Machine state cleared.")
-		return nil
-	},
 }

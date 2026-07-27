@@ -7,7 +7,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 
 	"github.com/spf13/cobra"
 )

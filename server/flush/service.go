@@ -9,7 +9,7 @@ import (
 	"tiny-file-watcher/server/database"
 	tfwssh "tiny-file-watcher/server/ssh"
 
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

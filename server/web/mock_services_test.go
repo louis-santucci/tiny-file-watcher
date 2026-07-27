@@ -3,7 +3,7 @@ package web
 import (
 	"context"
 
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 
 	"github.com/stretchr/testify/mock"
 )

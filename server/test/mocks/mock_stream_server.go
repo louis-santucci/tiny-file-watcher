@@ -3,7 +3,7 @@ package mocks
 import (
 	"context"
 
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc/metadata"

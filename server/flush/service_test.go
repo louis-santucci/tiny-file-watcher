@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/flush"
 	"tiny-file-watcher/server/test/mocks"

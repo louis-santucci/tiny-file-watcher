@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/redirection"
 	"tiny-file-watcher/server/test/mocks"

@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 )
 
 var machineCmd = &cobra.Command{

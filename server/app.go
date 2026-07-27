@@ -10,7 +10,7 @@ import (
 	"time"
 	"tiny-file-watcher/internal"
 
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 	config2 "tiny-file-watcher/server/config"
 	"tiny-file-watcher/server/database"
 	"tiny-file-watcher/server/flush"

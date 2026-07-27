@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 )
 
 const maxUploadSize = 64 << 20 // 64 MB

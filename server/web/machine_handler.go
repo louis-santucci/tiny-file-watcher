@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 )
 
 type machineListData struct {

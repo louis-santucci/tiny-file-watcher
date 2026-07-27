@@ -3,7 +3,7 @@ package web
 import (
 	"net/http"
 
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

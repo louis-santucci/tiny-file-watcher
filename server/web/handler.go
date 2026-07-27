@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 )
 
 // templateFS embeds all HTML templates at compile time.

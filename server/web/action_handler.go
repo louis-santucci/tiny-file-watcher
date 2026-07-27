@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 )
 
 // handleSync triggers a directory sync and returns an HTMX partial (watcher row).

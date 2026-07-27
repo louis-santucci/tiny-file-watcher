@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

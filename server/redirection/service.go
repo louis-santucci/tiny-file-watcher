@@ -3,7 +3,7 @@ package redirection
 import (
 	"context"
 	"log/slog"
-	pb "tiny-file-watcher/gen/grpc"
+	pb "tiny-file-watcher/gen/filewatcher"
 	"tiny-file-watcher/server/database"
 
 	"google.golang.org/grpc/codes"

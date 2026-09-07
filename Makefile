@@ -25,9 +25,7 @@ SERVICE_DEST      := $(SYSTEMD_USER_DIR)/$(SERVICE_NAME)
 
 IOS_GEN_DIR := tiny-file-watcher-app/tiny-file-watcher-app/Generated
 
-.PHONY: all help install-tools generate build build-client build-all install test lint clean \
-        install-service uninstall-service enable-service disable-service \
-        install-service-linux uninstall-service-linux enable-service-linux disable-service-linux
+.PHONY: all help install-tools generate build build-client build-all install test lint clean tag tag-major tag-minor tag-patch
 
 ## help: list all available make rules with descriptions
 help:
@@ -83,55 +81,18 @@ clean:
 $(GOLANGCI_LINT):
 	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
-## install-service: install tfws binary and register it as a macOS LaunchAgent (starts at login)
-install-service: install
-	@mkdir -p $(LAUNCH_AGENTS_DIR)
-	@sed -e 's|@@BINARY_PATH@@|$(INSTALL_DIR)/$(SERVER_BINARY)|g' \
-	     -e 's|@@HOME@@|$(HOME)|g' \
-	     $(PLIST_TEMPLATE) > $(PLIST_DEST)
-	@launchctl load -w $(PLIST_DEST)
-	@echo "tfws LaunchAgent installed and started."
+## tag: tag existing patch + current branch if not master
+tag:
+	@td . --docker
 
-## uninstall-service: stop and remove the tfws LaunchAgent
-uninstall-service:
-	@launchctl unload -w $(PLIST_DEST) 2>/dev/null || true
-	@rm -f $(PLIST_DEST)
-	@echo "tfws LaunchAgent removed."
+## tag-patch: tag patch on git + docker
+tag-patch:
+	@td . patch --docker
 
-## enable-service: enable (load) the tfws LaunchAgent
-enable-service:
-	@launchctl load -w $(PLIST_DEST)
-	@echo "tfws LaunchAgent enabled."
+## tag-minor: tag minor on git + docker
+tag-minor:
+	@td . minor --docker
 
-## disable-service: disable (unload) the tfws LaunchAgent
-disable-service:
-	@launchctl unload -w $(PLIST_DEST)
-	@echo "tfws LaunchAgent disabled."
-
-## install-service-linux: install tfws and register as a systemd user service (starts at login)
-install-service-linux: install
-	@mkdir -p $(SYSTEMD_USER_DIR)
-	@mkdir -p $(HOME)/.local/share/tfws
-	@sed -e 's|@@BINARY_PATH@@|$(INSTALL_DIR)/$(SERVER_BINARY)|g' \
-	     -e 's|@@HOME@@|$(HOME)|g' \
-	     $(SERVICE_TEMPLATE) > $(SERVICE_DEST)
-	@systemctl --user daemon-reload
-	@systemctl --user enable --now $(SERVICE_NAME)
-	@echo "tfws systemd user service installed and started."
-
-## uninstall-service-linux: stop and remove the tfws systemd user service
-uninstall-service-linux:
-	@systemctl --user disable --now $(SERVICE_NAME) 2>/dev/null || true
-	@rm -f $(SERVICE_DEST)
-	@systemctl --user daemon-reload
-	@echo "tfws systemd user service removed."
-
-## enable-service-linux: enable (start) the tfws systemd user service
-enable-service-linux:
-	@systemctl --user enable --now $(SERVICE_NAME)
-	@echo "tfws systemd user service enabled."
-
-## disable-service-linux: disable (stop) the tfws systemd user service
-disable-service-linux:
-	@systemctl --user disable --now $(SERVICE_NAME)
-	@echo "tfws systemd user service disabled."
+## tag-major: tag major on git + docker
+tag-major:
+	@td . major --docker

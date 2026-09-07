@@ -6,7 +6,7 @@ ENV GOOS=linux
 
 RUN apk update && rm -rf /var/cache/apk/*
 
-RUN go install "github.com/bufbuild/buf/cmd@latest"
+RUN go install "github.com/bufbuild/buf/cmd/buf@latest"
 
 WORKDIR /src
 

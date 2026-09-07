@@ -4,8 +4,7 @@ FROM golang:tip-alpine3.22 AS builder
 ENV CGO_ENABLED=0
 ENV GOOS=linux
 
-RUN apk update && \
-    && rm -rf /var/cache/apk/*
+RUN apk update && rm -rf /var/cache/apk/*
 
 RUN go install "google.golang.org/bufbuild/buf/cmd@latest"
 

@@ -1,10 +1,8 @@
 # Builder stage
-FROM golang:tip-alpine3.22 AS builder
+FROM dhi.io/golang:1.27-alpine AS builder
 
 ENV CGO_ENABLED=0
 ENV GOOS=linux
-
-RUN apk update && rm -rf /var/cache/apk/*
 
 RUN go install "github.com/bufbuild/buf/cmd/buf@latest"
 
@@ -26,19 +24,13 @@ COPY server/ ./server/
 RUN go build -o tfws ./server
 
 # Runtime stage
-FROM alpine:3.23.3
-
-# add a non-root user to run the application
-RUN adduser -D -u 1000 tfw
-
-USER tfw
+FROM dhi.io/debian-base:trixie
 
 WORKDIR /app
-
-RUN mkdir -p /app/.tfw
 
 COPY --from=builder /src/tfws ./tfws
 
 ENV TFWS_CONFIG_PATH=/app/.tfw
+ENV TZ=Europe/Paris
 
 ENTRYPOINT ["./tfws"]

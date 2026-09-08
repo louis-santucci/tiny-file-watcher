@@ -83,16 +83,16 @@ $(GOLANGCI_LINT):
 
 ## tag: tag existing patch + current branch if not master
 tag:
-	@td . --docker
+	@td . --docker -t
 
 ## tag-patch: tag patch on git + docker
 tag-patch:
-	@td . patch --docker
+	@td . patch --docker -t
 
 ## tag-minor: tag minor on git + docker
 tag-minor:
-	@td . minor --docker
+	@td . minor --docker -t
 
 ## tag-major: tag major on git + docker
 tag-major:
-	@td . major --docker
+	@td . major --docker -t

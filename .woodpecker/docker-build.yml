@@ -11,8 +11,8 @@ steps:
         from_secret: ZOT_USERNAME
       password:
         from_secret: ZOT_PASSWORD
-      context: server
-      dockerfile: docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
       registry: https://zot.albacore-glyptodon.ts.net
       repo: zot.albacore-glyptodon.ts.net/louissantucci/tiny-file-watcher
       logins:

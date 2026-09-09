@@ -1,0 +1,28 @@
+when:
+  - event: manual
+    branch: "**"
+
+steps:
+  - name: Docker build
+    image: woodpeckerci/plugin-docker-buildx:latest
+    settings:
+      tags: ${TAG}
+      username:
+        from_secret: ZOT_USERNAME
+      password:
+        from_secret: ZOT_PASSWORD
+      context: server
+      dockerfile: docker/Dockerfile
+      registry: https://zot.albacore-glyptodon.ts.net
+      repo: zot.albacore-glyptodon.ts.net/louissantucci/tiny-file-watcher
+      logins:
+        - registry: dhi.io
+          username:
+            from_secret: DHI_USERNAME
+          password:
+            from_secret: DHI_PASSWORD
+        - registry: docker.io
+          username:
+            from_secret: DOCKER_USERNAME
+          password:
+            from_secret: DOCKER_PASSWORD
